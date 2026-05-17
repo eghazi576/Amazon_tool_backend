@@ -1,0 +1,232 @@
+import { env } from "../../config/env.js";
+import { AppError } from "../../utils/response.js";
+import {
+  CSV,
+  parseCsvSeries,
+  parsePriceSeries,
+  lastValue,
+  currentFromStats,
+  medianOf,
+  downsample,
+  detectRankSpike,
+  bsrToSales,
+  detectTrueCategory,
+  calcProfit,
+} from "../../utils/keepa.js";
+
+const KEEPA_ERROR_MESSAGES = {
+  1: "Request failed — check ASIN and API key",
+  2: "Not enough Keepa tokens — wait or upgrade plan",
+  3: "Invalid API key — check KEEPA_API_KEY in .env",
+  4: "API not accessible — check your Keepa subscription",
+  5: "Endpoint not available for your plan",
+};
+
+export const keepaService = {
+  /**
+   * Fetch product data from Keepa and compute profit analysis.
+   * @param {{ asin, domain, cogs, manualWeightG, manualReferralRate }} dto
+   */
+  async fetchProduct({ asin, domain, cogs, manualWeightG, manualReferralRate }) {
+    const cleanAsin = asin.trim().toUpperCase();
+    const now       = Date.now();
+    const cutoff90d = now - 90 * 24 * 60 * 60 * 1000;
+
+    // ── Keepa API request ────────────────────────────────────────────────────
+    const url = new URL("https://api.keepa.com/product");
+    url.searchParams.set("key",    env.KEEPA_API_KEY);
+    url.searchParams.set("domain", String(domain));
+    url.searchParams.set("asin",   cleanAsin);
+    url.searchParams.set("stats",  "90");
+    url.searchParams.set("buybox", "1");
+    url.searchParams.set("rating", "1");
+
+    const keepaResp = await fetch(url.toString());
+    const keepaData = await keepaResp.json();
+
+    console.log("[Keepa] status:", keepaResp.status, "| tokensLeft:", keepaData.tokensLeft);
+
+    if (!keepaResp.ok || keepaData.error) {
+      const msg = KEEPA_ERROR_MESSAGES[keepaData.error] ?? `Keepa error code: ${keepaData.error}`;
+      throw new AppError(msg, 400, "KEEPA_ERROR", { keepaError: keepaData.error });
+    }
+
+    const product = keepaData?.products?.[0];
+    if (!product) {
+      throw new AppError("Product not found on Keepa", 404, "PRODUCT_NOT_FOUND");
+    }
+
+    const csv   = product.csv || [];
+    const stats = product.stats || {};
+
+    // ── Parse 90-day series ──────────────────────────────────────────────────
+    const buyboxSeries = parsePriceSeries(csv[CSV.BUYBOX],        cutoff90d);
+    const amazonSeries = parsePriceSeries(csv[CSV.AMAZON],        cutoff90d);
+    const newSeries    = parsePriceSeries(csv[CSV.NEW],           cutoff90d);
+    const newFbaSeries = parsePriceSeries(csv[CSV.NEW_FBA],       cutoff90d);
+    const listSeries   = parsePriceSeries(csv[CSV.LIST_PRICE],    cutoff90d);
+    const rankSeries   = parseCsvSeries(csv[CSV.SALES_RANK],      cutoff90d);
+    const reviewSeries = parseCsvSeries(csv[CSV.REVIEW_COUNT],    cutoff90d);
+    const offerSeries  = parseCsvSeries(csv[CSV.OFFER_COUNT_NEW], cutoff90d);
+    const fbaCtSeries  = parseCsvSeries(csv[CSV.OFFER_COUNT_FBA], cutoff90d);
+    const ratingSeries = parseCsvSeries(csv[CSV.RATING],          cutoff90d);
+
+    // ── Current selling price ────────────────────────────────────────────────
+    let sellingPrice = null;
+    const curBB = currentFromStats(stats, CSV.BUYBOX);
+    if (curBB > 0) sellingPrice = curBB / 100;
+    if (!sellingPrice) { const v = lastValue(buyboxSeries);              if (v > 0) sellingPrice = v; }
+    if (!sellingPrice) { const v = currentFromStats(stats, CSV.NEW_FBA); if (v > 0) sellingPrice = v / 100; }
+    if (!sellingPrice) { const v = lastValue(newFbaSeries);              if (v > 0) sellingPrice = v; }
+    if (!sellingPrice) { const v = currentFromStats(stats, CSV.NEW);     if (v > 0) sellingPrice = v / 100; }
+    if (!sellingPrice) { const v = lastValue(newSeries);                 if (v > 0) sellingPrice = v; }
+
+    const medianBuyBox = medianOf(buyboxSeries) || medianOf(newSeries) || sellingPrice;
+
+    // ── BSR ──────────────────────────────────────────────────────────────────
+    const avgRank90 = rankSeries.length
+      ? Math.round(rankSeries.reduce((s, p) => s + p.v, 0) / rankSeries.length)
+      : null;
+    let currentRank = currentFromStats(stats, CSV.SALES_RANK);
+    if (!currentRank) currentRank = lastValue(rankSeries);
+
+    // ── Prices ───────────────────────────────────────────────────────────────
+    let listPrice = null;
+    const curList = currentFromStats(stats, CSV.LIST_PRICE);
+    if (curList > 0) listPrice = curList / 100;
+    else { const v = lastValue(listSeries); if (v > 0) listPrice = v; }
+
+    let mapPrice = null;
+    const mapStats = currentFromStats(stats, CSV.MAP);
+    if (mapStats > 0) mapPrice = mapStats / 100;
+
+    // ── Rating & Reviews ─────────────────────────────────────────────────────
+    let currentRating = null;
+    const ratingStats = currentFromStats(stats, CSV.RATING);
+    if (ratingStats > 0) currentRating = ratingStats / 10;
+    else { const v = lastValue(ratingSeries); if (v > 0) currentRating = v / 10; }
+
+    let currentReviewCount = currentFromStats(stats, CSV.REVIEW_COUNT);
+    if (!currentReviewCount) currentReviewCount = lastValue(reviewSeries);
+
+    // ── Seller counts ────────────────────────────────────────────────────────
+    const currentOfferCount = currentFromStats(stats, CSV.OFFER_COUNT_NEW) ?? lastValue(offerSeries);
+    const currentFbaCount   = currentFromStats(stats, CSV.OFFER_COUNT_FBA) ?? lastValue(fbaCtSeries);
+    const avgFbaCount90     = fbaCtSeries.length > 0
+      ? Math.round(fbaCtSeries.reduce((s, p) => s + p.v, 0) / fbaCtSeries.length)
+      : currentFbaCount;
+
+    const amazonLastPrice = lastValue(amazonSeries);
+    const amazonIsSeller  = (product.availabilityAmazon != null && product.availabilityAmazon >= 0)
+                         || (amazonLastPrice != null && amazonLastPrice > 0);
+
+    // ── Category ─────────────────────────────────────────────────────────────
+    const categoryTree = product.categoryTree || [];
+    const categoryName  = categoryTree.length ? categoryTree[categoryTree.length - 1].name : null;
+    const rootCategory  = categoryTree.length ? categoryTree[0].name : null;
+    const allCategories = categoryTree.map((c) => c.name).join(" | ");
+
+    console.log("[Keepa] categoryTree:", allCategories);
+    console.log("[Keepa] title:", product.title?.slice(0, 80));
+
+    // ── Monthly sales estimate ────────────────────────────────────────────────
+    const drops30 = stats.salesRankDrops30 ?? null;
+    const drops90 = stats.salesRankDrops90 ?? null;
+    let monthlySalesEstimate = null;
+    if (drops90 > 0)      monthlySalesEstimate = Math.round(drops90 / 3);
+    else if (drops30 > 0) monthlySalesEstimate = drops30;
+    else                  monthlySalesEstimate = bsrToSales(avgRank90, categoryName || rootCategory);
+
+    // ── Product attributes ────────────────────────────────────────────────────
+    const packageWeightG   = product.packageWeight ?? null;
+    const itemWeightG      = product.itemWeight ?? null;
+    const dimensions       = product.packageDimension ?? null;
+    const effectiveWeightG = packageWeightG || itemWeightG || (manualWeightG > 0 ? manualWeightG : null);
+    const isHazmat         = product.isHazMat === true;
+    const isAdultProduct   = product.isAdultProduct === true;
+    const hasBuyBox        = (buyboxSeries.length > 0 && lastValue(buyboxSeries) > 0)
+                          || (currentFromStats(stats, CSV.BUYBOX) > 0);
+
+    // ── Trends ───────────────────────────────────────────────────────────────
+    const priceSeries  = buyboxSeries.length ? buyboxSeries : newSeries;
+    const priceTrend90 = priceSeries.length >= 2
+      ? parseFloat((((priceSeries.at(-1).v - priceSeries[0].v) / priceSeries[0].v) * 100).toFixed(1)) : null;
+    const bsrTrend90 = rankSeries.length >= 2
+      ? parseFloat((((rankSeries.at(-1).v - rankSeries[0].v) / rankSeries[0].v) * 100).toFixed(1)) : null;
+
+    // ── Profit calculation ────────────────────────────────────────────────────
+    const rawCategory       = allCategories || categoryName || rootCategory || "";
+    const effectiveCategory = detectTrueCategory(rawCategory, product.title || "");
+    console.log("[Keepa] effectiveCategory:", effectiveCategory);
+
+    const profitCalc = calcProfit({
+      sellingPrice:      sellingPrice || 0,
+      cogs,
+      category:          effectiveCategory,
+      title:             product.title || "",
+      weightG:           effectiveWeightG,
+      dimensions,
+      monthlySales:      monthlySalesEstimate,
+      manualReferralRate,
+    });
+
+    const monthlyRevenue = monthlySalesEstimate && sellingPrice
+      ? parseFloat((monthlySalesEstimate * sellingPrice).toFixed(2)) : null;
+
+    // ── Build response ────────────────────────────────────────────────────────
+    return {
+      asin: cleanAsin,
+      title:        product.title ?? null,
+      brand:        product.brand ?? null,
+      manufacturer: product.manufacturer ?? null,
+      model:        product.model ?? null,
+      category:     categoryName,
+      rootCategory,
+      allCategories,
+      image: product.imagesCSV
+        ? `https://images-na.ssl-images-amazon.com/images/I/${product.imagesCSV.split(",")[0]}`
+        : null,
+      isHazmat, isAdultProduct, hasBuyBox,
+      packageWeightG, itemWeightG, dimensions,
+      partNumber: product.partNumber ?? null,
+      eanList:    product.eanList ?? null,
+      upcList:    product.upcList ?? null,
+      pricing: {
+        sellingPrice, medianBuyBox, listPrice, mapPrice,
+        amazonPrice:  lastValue(amazonSeries),
+        newFbaPrice:  lastValue(newFbaSeries),
+        priceTrend90,
+        stats90: {
+          avgBuyBox: medianBuyBox,
+          minBuyBox: stats.min90?.[CSV.BUYBOX] > 0 ? stats.min90[CSV.BUYBOX] / 100 : null,
+          maxBuyBox: stats.max90?.[CSV.BUYBOX] > 0 ? stats.max90[CSV.BUYBOX] / 100 : null,
+          minRank:   stats.min90?.[CSV.SALES_RANK] ?? null,
+          maxRank:   stats.max90?.[CSV.SALES_RANK] ?? null,
+          avgRank:   avgRank90,
+        },
+      },
+      metrics: {
+        currentRank, avgRank90, currentRating, currentReviewCount,
+        currentOfferCount,
+        currentFbaCount: avgFbaCount90 ?? currentFbaCount,
+        amazonIsSeller, hasBuyBox,
+        monthlySalesEstimate, monthlyRevenue,
+        salesRankDrops30: drops30, salesRankDrops90: drops90,
+        rankSpike: detectRankSpike(rankSeries), bsrTrend90,
+      },
+      profitAnalysis: {
+        priceUsed: sellingPrice || 0,
+        ...profitCalc,
+        note: cogs > 0 ? "Calculated with your COGS" : "Enter COGS for accurate profit",
+      },
+      series: {
+        price:      downsample(buyboxSeries.length ? buyboxSeries : newSeries),
+        rank:       downsample(rankSeries),
+        reviews:    downsample(reviewSeries),
+        offerCount: downsample(offerSeries),
+        fbaCount:   downsample(fbaCtSeries),
+      },
+      tokensLeft: keepaData.tokensLeft ?? null,
+    };
+  },
+};

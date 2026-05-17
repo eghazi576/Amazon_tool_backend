@@ -1,0 +1,83 @@
+// Prisma Schema — Amazon Insight Hub
+// Converted from schema.sql (Supabase → PostgreSQL)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Users ────────────────────────────────────────────────────────────────────
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String   // bcrypt hashed
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  resetPasswordToken  String?   @map("reset_password_token")
+  resetPasswordExpiry DateTime? @map("reset_password_expiry")
+
+  searches AsinSearch[]
+
+  @@map("users")
+}
+
+// ─── ASIN Search History ──────────────────────────────────────────────────────
+model AsinSearch {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Product info
+  asin     String
+  title    String?
+  brand    String?
+  image    String?
+  category String?
+
+  // Pricing
+  sellingPrice   Float?  @map("selling_price")
+  medianPrice90d Float?  @map("median_price_90d")
+
+  // Profit analysis
+  profitPerUnit Float?  @map("profit_per_unit")
+  roiPct        Float?  @map("roi_pct")
+  marginPct     Float?  @map("margin_pct")
+  referralFee   Float?  @map("referral_fee")
+  fbaFee        Float?  @map("fba_fee")
+  storageFee    Float?  @map("storage_fee")
+  totalFees     Float?  @map("total_fees")
+  cogs          Float?
+  breakEvenPrice Float? @map("break_even_price")
+
+  // Scoring
+  decision   String? // EXCELLENT | GOOD | AVERAGE | BAD | REJECT
+  score      Int?
+  maxScore   Int?    @map("max_score")
+  scorePct   Float?  @map("score_pct")
+
+  // Rejection
+  rejectionReasons String[] @map("rejection_reasons")
+
+  // Metrics
+  currentBsr       Int?    @map("current_bsr")
+  avgBsr90d        Int?    @map("avg_bsr_90d")
+  rating           Float?
+  reviewCount      Int?    @map("review_count")
+  fbaSellerCount   Int?    @map("fba_seller_count")
+  monthlySalesEst  Int?    @map("monthly_sales_est")
+  monthlyRevenue   Float?  @map("monthly_revenue")
+  isHazmat         Boolean @default(false) @map("is_hazmat")
+  amazonIsSeller   Boolean @default(false) @map("amazon_is_seller")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([asin])
+  @@index([createdAt])
+  @@map("asin_searches")
+}
