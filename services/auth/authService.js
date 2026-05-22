@@ -3,6 +3,13 @@ import { randomBytes } from "crypto";
 import { authModel }  from "../../model/auth/authModel.js";
 import { signToken }  from "../../utils/jwt.js";
 import { AppError }   from "../../utils/response.js";
+import { env }        from "../../config/env.js";
+
+const adminEmails = env.ADMIN_EMAILS
+  ? env.ADMIN_EMAILS.split(",").map((e) => e.trim().toLowerCase()).filter(Boolean)
+  : [];
+
+const isAdmin = (email) => adminEmails.includes(email?.toLowerCase());
 
 export const authService = {
   /**
@@ -19,7 +26,7 @@ export const authService = {
     const user   = await authModel.create({ email, password: hashed });
     const token  = signToken({ userId: user.id, email: user.email });
 
-    return { user, token };
+    return { user: { ...user, isAdmin: isAdmin(user.email) }, token };
   },
 
   /**
@@ -40,7 +47,7 @@ export const authService = {
     const token = signToken({ userId: user.id, email: user.email });
     const { password: _, resetPasswordToken: __, resetPasswordExpiry: ___, updatedAt: ____, ...safeUser } = user;
 
-    return { user: safeUser, token };
+    return { user: { ...safeUser, isAdmin: isAdmin(safeUser.email) }, token };
   },
 
   /**
@@ -52,7 +59,7 @@ export const authService = {
     if (!user) {
       throw new AppError("User not found", 404, "USER_NOT_FOUND");
     }
-    return user;
+    return { ...user, isAdmin: isAdmin(user.email) };
   },
 
   /**

@@ -81,3 +81,12 @@ model AsinSearch {
   @@index([createdAt])
   @@map("asin_searches")
 }
+
+// ─── App Config (admin-controlled settings) ───────────────────────────────────
+model AppConfig {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("app_configs")
+}
