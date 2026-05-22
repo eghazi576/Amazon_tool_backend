@@ -18,4 +18,13 @@ export const adminService = {
 
   getDefaultConfig: () =>
     adminModel.getDefaultConfig(),
+
+  getBrandScoringConfig: () =>
+    adminModel.getBrandScoringConfig(),
+
+  saveBrandScoringConfig: (config) =>
+    adminModel.saveBrandScoringConfig(config),
+
+  getDefaultBrandConfig: () =>
+    adminModel.getDefaultBrandConfig(),
 };

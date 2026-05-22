@@ -1,6 +1,18 @@
 import prisma from "../../db/prisma.js";
 
-const SCORING_KEY = "scoring_config";
+const SCORING_KEY       = "scoring_config";
+const BRAND_SCORING_KEY = "brand_scoring_config";
+
+const DEFAULT_BRAND_CONFIG = {
+  approvalPct: 70, minFbaSellers: 3, maxFbaSellers: 5,
+  minMonthlySales: 100, maxIpComplaints: 1,
+  weights: {
+    website: 10, registeredBusiness: 10, noHazmat: 10,
+    noAdultRisk: 10, noTakedowns: 10, brandActive: 10,
+    noIPComplaints: 10, noCounterfeit: 5, fbaSellers: 5,
+    salesVelocity: 5, noSuppressions: 5,
+  },
+};
 
 const DEFAULT_CONFIG = {
   // Hard rejection thresholds
@@ -73,4 +85,20 @@ export const adminModel = {
   },
 
   getDefaultConfig: () => DEFAULT_CONFIG,
+
+  getBrandScoringConfig: async () => {
+    const row = await prisma.appConfig.findUnique({ where: { key: BRAND_SCORING_KEY } });
+    return row ? row.value : DEFAULT_BRAND_CONFIG;
+  },
+
+  saveBrandScoringConfig: async (config) => {
+    await prisma.appConfig.upsert({
+      where:  { key: BRAND_SCORING_KEY },
+      update: { value: config },
+      create: { key: BRAND_SCORING_KEY, value: config },
+    });
+    return config;
+  },
+
+  getDefaultBrandConfig: () => DEFAULT_BRAND_CONFIG,
 };

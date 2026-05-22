@@ -47,4 +47,26 @@ export const adminController = {
       return sendSuccess(res, config, "Scoring config reset to defaults");
     } catch (err) { next(err); }
   },
+
+  async getBrandScoringConfig(req, res, next) {
+    try {
+      const config = await adminService.getBrandScoringConfig();
+      return sendSuccess(res, config);
+    } catch (err) { next(err); }
+  },
+
+  async saveBrandScoringConfig(req, res, next) {
+    try {
+      const config = await adminService.saveBrandScoringConfig(req.body);
+      return sendSuccess(res, config, "Brand scoring config saved");
+    } catch (err) { next(err); }
+  },
+
+  async resetBrandScoringConfig(req, res, next) {
+    try {
+      const def = adminService.getDefaultBrandConfig();
+      const config = await adminService.saveBrandScoringConfig(def);
+      return sendSuccess(res, config, "Brand scoring config reset to defaults");
+    } catch (err) { next(err); }
+  },
 };
