@@ -10,7 +10,7 @@ const DEFAULT_BRAND_CONFIG = {
     website: 10, registeredBusiness: 10, noHazmat: 10,
     noAdultRisk: 10, noTakedowns: 10, brandActive: 10,
     noIPComplaints: 10, noCounterfeit: 5, fbaSellers: 5,
-    salesVelocity: 5, noSuppressions: 5,
+    salesVelocity: 5,
   },
 };
 
