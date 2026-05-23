@@ -12,6 +12,9 @@ import prisma      from "./db/prisma.js";
 
 const app = express();
 
+// Trust Nginx reverse proxy
+app.set("trust proxy", 1);
+
 // ─── Core Middleware ──────────────────────────────────────────────────────────
 app.use(cors({
   origin:       env.CORS_ORIGIN === "*" ? "*" : env.CORS_ORIGIN.split(","),
