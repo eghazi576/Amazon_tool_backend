@@ -1,14 +1,16 @@
 import { Router } from "express";
-import authRoutes   from "./auth/authRoutes.js";
-import searchRoutes from "./search/searchRoutes.js";
-import keepaRoutes  from "./keepa/keepaRoutes.js";
-import adminRoutes  from "./admin/adminRoutes.js";
+import authRoutes        from "./auth/authRoutes.js";
+import searchRoutes      from "./search/searchRoutes.js";
+import keepaRoutes       from "./keepa/keepaRoutes.js";
+import adminRoutes       from "./admin/adminRoutes.js";
+import brandSearchRoutes from "./brandSearch/brandSearchRoutes.js";
 
 const router = Router();
 
-router.use("/auth",   authRoutes);
-router.use("/search", searchRoutes);
-router.use("/keepa",  keepaRoutes);
-router.use("/admin",  adminRoutes);
+router.use("/auth",          authRoutes);
+router.use("/search",        searchRoutes);
+router.use("/keepa",         keepaRoutes);
+router.use("/admin",         adminRoutes);
+router.use("/brand-history", brandSearchRoutes);
 
 export default router;

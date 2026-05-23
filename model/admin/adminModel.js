@@ -48,16 +48,40 @@ const DEFAULT_CONFIG = {
   },
 };
 
+function buildWhere({ search, decision, dateFrom, dateTo } = {}) {
+  const where = {};
+  if (search) {
+    where.OR = [
+      { asin:  { contains: search, mode: "insensitive" } },
+      { title: { contains: search, mode: "insensitive" } },
+      { user:  { email: { contains: search, mode: "insensitive" } } },
+    ];
+  }
+  if (decision) where.decision = decision;
+  if (dateFrom || dateTo) {
+    where.createdAt = {};
+    if (dateFrom) where.createdAt.gte = new Date(dateFrom);
+    if (dateTo)   where.createdAt.lte = new Date(dateTo + "T23:59:59.999Z");
+  }
+  return where;
+}
+
 export const adminModel = {
-  getAllSearches: ({ limit, offset }) =>
-    prisma.asinSearch.findMany({
+  getAllSearches: ({ limit, offset, search, decision, dateFrom, dateTo }) => {
+    const where = buildWhere({ search, decision, dateFrom, dateTo });
+    return prisma.asinSearch.findMany({
+      where,
       orderBy: { createdAt: "desc" },
       take: limit,
       skip: offset,
       include: { user: { select: { email: true } } },
-    }),
+    });
+  },
 
-  countAllSearches: () => prisma.asinSearch.count(),
+  countAllSearches: ({ search, decision, dateFrom, dateTo } = {}) => {
+    const where = buildWhere({ search, decision, dateFrom, dateTo });
+    return prisma.asinSearch.count({ where });
+  },
 
   getStats: async () => {
     const [totalUsers, totalSearches, recentSearches] = await Promise.all([

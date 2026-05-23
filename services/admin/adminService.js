@@ -1,11 +1,11 @@
 import { adminModel } from "../../model/admin/adminModel.js";
 
 export const adminService = {
-  getAllSearches: ({ limit, offset }) =>
-    adminModel.getAllSearches({ limit, offset }),
+  getAllSearches: ({ limit, offset, search, decision, dateFrom, dateTo }) =>
+    adminModel.getAllSearches({ limit, offset, search, decision, dateFrom, dateTo }),
 
-  countAllSearches: () =>
-    adminModel.countAllSearches(),
+  countAllSearches: ({ search, decision, dateFrom, dateTo } = {}) =>
+    adminModel.countAllSearches({ search, decision, dateFrom, dateTo }),
 
   getStats: () =>
     adminModel.getStats(),

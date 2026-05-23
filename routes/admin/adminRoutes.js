@@ -15,5 +15,6 @@ router.post("/scoring-config/reset",      adminController.resetScoringConfig);
 router.get("/brand-scoring-config",       adminController.getBrandScoringConfig);
 router.put("/brand-scoring-config",       adminController.saveBrandScoringConfig);
 router.post("/brand-scoring-config/reset",adminController.resetBrandScoringConfig);
+router.get("/brand-searches",             adminController.getAllBrandSearches);
 
 export default router;

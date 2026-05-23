@@ -21,7 +21,8 @@ model User {
   resetPasswordToken  String?   @map("reset_password_token")
   resetPasswordExpiry DateTime? @map("reset_password_expiry")
 
-  searches AsinSearch[]
+  searches      AsinSearch[]
+  brandSearches BrandSearch[]
 
   @@map("users")
 }
@@ -80,6 +81,47 @@ model AsinSearch {
   @@index([asin])
   @@index([createdAt])
   @@map("asin_searches")
+}
+
+// ─── Brand Intelligence History ───────────────────────────────────────────────
+model BrandSearch {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Brand identity
+  asin         String
+  brandName    String  @map("brand_name")
+  brandWebsite String? @map("brand_website")
+  category     String?
+
+  // Scoring result
+  decision         String   // APPROVED | REJECTED
+  score            Int
+  maxScore         Int     @map("max_score")
+  scorePct         Float   @map("score_pct")
+  rejected         Boolean
+  rejectionReasons String[] @map("rejection_reasons")
+  explanation      String?
+
+  // Input snapshot
+  hasRegisteredBusiness Boolean @map("has_registered_business")
+  hazmatHeavyCatalog    Boolean @map("hazmat_heavy_catalog")
+  adultOrHighRisk       Boolean @map("adult_or_high_risk")
+  massAccountTakedowns  Boolean @map("mass_account_takedowns")
+  lastSaleWithin30Days  Boolean @map("last_sale_within_30_days")
+  ipComplaintsLast12Mo  Int     @default(0) @map("ip_complaints_last_12_mo")
+  ipAlertRedFlags       Boolean @default(false) @map("ip_alert_red_flags")
+  fbaSellersPerAsin     Int?    @map("fba_sellers_per_asin")
+  monthlySalesPerAsin   Int?    @map("monthly_sales_per_asin")
+  mapViolationSensitive Boolean @default(false) @map("map_violation_sensitive")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([brandName])
+  @@index([createdAt])
+  @@map("brand_searches")
 }
 
 // ─── App Config (admin-controlled settings) ───────────────────────────────────
