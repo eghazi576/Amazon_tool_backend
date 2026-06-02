@@ -40,6 +40,7 @@ export const keepaService = {
     url.searchParams.set("stats",  "90");
     url.searchParams.set("buybox", "1");
     url.searchParams.set("rating", "1");
+    url.searchParams.set("offers", "20");
 
     const keepaResp = await fetch(url.toString());
     const keepaData = await keepaResp.json();
@@ -124,6 +125,15 @@ export const keepaService = {
     const avgFbaCount90     = fbaCtSeries.length > 0
       ? Math.round(fbaCtSeries.reduce((s, p) => s + p.v, 0) / fbaCtSeries.length)
       : currentFbaCount;
+
+    // FBA count from live offers (most accurate — counts current new FBA sellers)
+    let fbaCountFromOffers = null;
+    if (product.liveOffersOrder?.length && product.offers?.length) {
+      const liveOffers = product.liveOffersOrder.map(i => product.offers[i]).filter(Boolean);
+      fbaCountFromOffers = liveOffers.filter(o => o.isFBA && o.condition === 1).length || null;
+    }
+    const resolvedFbaCount = fbaCountFromOffers ?? avgFbaCount90 ?? currentFbaCount;
+    console.log("[Keepa] FBA count — live offers:", fbaCountFromOffers, "| avg90:", avgFbaCount90, "| resolved:", resolvedFbaCount);
 
     const amazonLastPrice = lastValue(amazonSeries);
     const amazonIsSeller  = (product.availabilityAmazon != null && product.availabilityAmazon >= 0)
@@ -249,7 +259,7 @@ export const keepaService = {
       metrics: {
         currentRank, avgRank90, currentRating, currentReviewCount,
         currentOfferCount,
-        currentFbaCount: avgFbaCount90 ?? currentFbaCount,
+        currentFbaCount: resolvedFbaCount,
         amazonIsSeller, hasBuyBox,
         monthlySalesEstimate, monthlyRevenue,
         salesRankDrops30: drops30, salesRankDrops90: drops90,
