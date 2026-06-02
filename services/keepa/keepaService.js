@@ -139,13 +139,31 @@ export const keepaService = {
     console.log("[Keepa] title:", product.title?.slice(0, 80));
 
     // ── Monthly sales estimate ────────────────────────────────────────────────
-    // Priority: drops30 (most recent 30-day window) → drops90/3 (90-day avg) → BSR formula
     const drops30 = stats.salesRankDrops30 ?? null;
     const drops90 = stats.salesRankDrops90 ?? null;
+
+    // Method 1: count rank drops (BSR decreases = sales) in last 30 days from series
+    const cutoff30d     = now - 30 * 24 * 60 * 60 * 1000;
+    const rankSeries30  = parseCsvSeries(csv[CSV.SALES_RANK], cutoff30d);
+    let seriesDrops30   = 0;
+    for (let i = 1; i < rankSeries30.length; i++) {
+      if (rankSeries30[i].v < rankSeries30[i - 1].v) seriesDrops30++;
+    }
+
+    // Method 2: same from 90-day series → divide by 3
+    let seriesDrops90 = 0;
+    for (let i = 1; i < rankSeries.length; i++) {
+      if (rankSeries[i].v < rankSeries[i - 1].v) seriesDrops90++;
+    }
+
     let monthlySalesEstimate = null;
-    if (drops30 > 0)      monthlySalesEstimate = drops30;
-    else if (drops90 > 0) monthlySalesEstimate = Math.round(drops90 / 3);
-    else                  monthlySalesEstimate = bsrToSales(avgRank90, categoryName || rootCategory);
+    if (seriesDrops30 > 0)                                  monthlySalesEstimate = seriesDrops30;
+    else if (drops30 > 0 && drops90 > 0 && drops30 < drops90) monthlySalesEstimate = drops30;  // sanity: drops30 must be < drops90
+    else if (drops90 > 0)                                   monthlySalesEstimate = Math.round(drops90 / 3);
+    else if (seriesDrops90 > 0)                             monthlySalesEstimate = Math.round(seriesDrops90 / 3);
+    else                                                    monthlySalesEstimate = bsrToSales(avgRank90, categoryName || rootCategory);
+
+    console.log("[Keepa] sales drops — series30:", seriesDrops30, "| drops30:", drops30, "| drops90:", drops90, "| estimate:", monthlySalesEstimate);
 
     // ── Product attributes ────────────────────────────────────────────────────
     const packageWeightG   = product.packageWeight ?? null;
