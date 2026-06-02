@@ -65,7 +65,8 @@ export const keepaService = {
     const newSeries    = parsePriceSeries(csv[CSV.NEW],           cutoff90d);
     const newFbaSeries = parsePriceSeries(csv[CSV.NEW_FBA],       cutoff90d);
     const listSeries   = parsePriceSeries(csv[CSV.LIST_PRICE],    cutoff90d);
-    const rankSeries   = parseCsvSeries(csv[CSV.SALES_RANK],      cutoff90d);
+    const rankSeries     = parseCsvSeries(csv[CSV.SALES_RANK], cutoff90d);
+    const rankSeriesFull = parseCsvSeries(csv[CSV.SALES_RANK]);   // no time cutoff — for currentRank fallback
     const reviewSeries = parseCsvSeries(csv[CSV.REVIEW_COUNT],    cutoff90d);
     const offerSeries  = parseCsvSeries(csv[CSV.OFFER_COUNT_NEW], cutoff90d);
     const fbaCtSeries  = parseCsvSeries(csv[CSV.OFFER_COUNT_FBA], cutoff90d);
@@ -87,8 +88,16 @@ export const keepaService = {
     const avgRank90 = rankSeries.length
       ? Math.round(rankSeries.reduce((s, p) => s + p.v, 0) / rankSeries.length)
       : null;
+
+    // currentRank: stats.current > 90d series last value > full series last value > salesRanks
     let currentRank = currentFromStats(stats, CSV.SALES_RANK);
     if (!currentRank) currentRank = lastValue(rankSeries);
+    if (!currentRank) currentRank = lastValue(rankSeriesFull);
+    // salesRanks map: { categoryId: bsr } — take the smallest BSR (most specific / relevant)
+    if (!currentRank && product.salesRanks && typeof product.salesRanks === "object") {
+      const bsrs = Object.values(product.salesRanks).filter(v => v > 0);
+      if (bsrs.length) currentRank = Math.min(...bsrs);
+    }
 
     // ── Prices ───────────────────────────────────────────────────────────────
     let listPrice = null;
