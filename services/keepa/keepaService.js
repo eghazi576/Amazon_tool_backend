@@ -139,6 +139,7 @@ export const keepaService = {
     console.log("[Keepa] title:", product.title?.slice(0, 80));
 
     // ── Monthly sales estimate ────────────────────────────────────────────────
+    const monthlySold = product.monthlySold ?? null;  // Amazon "Bought in past month" badge
     const drops30 = stats.salesRankDrops30 ?? null;
     const drops90 = stats.salesRankDrops90 ?? null;
 
@@ -157,13 +158,14 @@ export const keepaService = {
     }
 
     let monthlySalesEstimate = null;
-    if (seriesDrops30 > 0)                                  monthlySalesEstimate = seriesDrops30;
-    else if (drops30 > 0 && drops90 > 0 && drops30 < drops90) monthlySalesEstimate = drops30;  // sanity: drops30 must be < drops90
-    else if (drops90 > 0)                                   monthlySalesEstimate = Math.round(drops90 / 3);
-    else if (seriesDrops90 > 0)                             monthlySalesEstimate = Math.round(seriesDrops90 / 3);
-    else                                                    monthlySalesEstimate = bsrToSales(avgRank90, categoryName || rootCategory);
+    if (monthlySold > 0)                                         monthlySalesEstimate = monthlySold;  // Amazon's own "bought in past month"
+    else if (seriesDrops30 > 0)                                  monthlySalesEstimate = seriesDrops30;
+    else if (drops30 > 0 && drops90 > 0 && drops30 < drops90)   monthlySalesEstimate = drops30;
+    else if (drops90 > 0)                                        monthlySalesEstimate = Math.round(drops90 / 3);
+    else if (seriesDrops90 > 0)                                  monthlySalesEstimate = Math.round(seriesDrops90 / 3);
+    else                                                         monthlySalesEstimate = bsrToSales(avgRank90, categoryName || rootCategory);
 
-    console.log("[Keepa] sales drops — series30:", seriesDrops30, "| drops30:", drops30, "| drops90:", drops90, "| estimate:", monthlySalesEstimate);
+    console.log("[Keepa] monthlySold:", monthlySold, "| series30:", seriesDrops30, "| drops30:", drops30, "| drops90:", drops90, "| estimate:", monthlySalesEstimate);
 
     // ── Product attributes ────────────────────────────────────────────────────
     const packageWeightG   = product.packageWeight ?? null;
