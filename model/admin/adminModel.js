@@ -45,6 +45,9 @@ const DEFAULT_CONFIG = {
     rating:           5,
     reviews:          2,
     minPrice:         2,
+    notGated:        10,
+    listingActive:   10,
+    buyBoxExists:    10,
   },
 };
 
