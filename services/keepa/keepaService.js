@@ -130,11 +130,12 @@ export const keepaService = {
     console.log("[Keepa] title:", product.title?.slice(0, 80));
 
     // ── Monthly sales estimate ────────────────────────────────────────────────
+    // Priority: drops30 (most recent 30-day window) → drops90/3 (90-day avg) → BSR formula
     const drops30 = stats.salesRankDrops30 ?? null;
     const drops90 = stats.salesRankDrops90 ?? null;
     let monthlySalesEstimate = null;
-    if (drops90 > 0)      monthlySalesEstimate = Math.round(drops90 / 3);
-    else if (drops30 > 0) monthlySalesEstimate = drops30;
+    if (drops30 > 0)      monthlySalesEstimate = drops30;
+    else if (drops90 > 0) monthlySalesEstimate = Math.round(drops90 / 3);
     else                  monthlySalesEstimate = bsrToSales(avgRank90, categoryName || rootCategory);
 
     // ── Product attributes ────────────────────────────────────────────────────
@@ -198,8 +199,19 @@ export const keepaService = {
         priceTrend90,
         stats90: {
           avgBuyBox: medianBuyBox,
-          minBuyBox: stats.min90?.[CSV.BUYBOX] > 0 ? stats.min90[CSV.BUYBOX] / 100 : null,
-          maxBuyBox: stats.max90?.[CSV.BUYBOX] > 0 ? stats.max90[CSV.BUYBOX] / 100 : null,
+          minBuyBox: (() => {
+            // Try Keepa stats first; fall back to series min
+            const s = stats.min90?.[CSV.BUYBOX];
+            if (s > 0) return parseFloat((s / 100).toFixed(2));
+            const vals = priceSeries.map(p => p.v).filter(v => v > 0);
+            return vals.length ? parseFloat(Math.min(...vals).toFixed(2)) : null;
+          })(),
+          maxBuyBox: (() => {
+            const s = stats.max90?.[CSV.BUYBOX];
+            if (s > 0) return parseFloat((s / 100).toFixed(2));
+            const vals = priceSeries.map(p => p.v).filter(v => v > 0);
+            return vals.length ? parseFloat(Math.max(...vals).toFixed(2)) : null;
+          })(),
           minRank:   stats.min90?.[CSV.SALES_RANK] ?? null,
           maxRank:   stats.max90?.[CSV.SALES_RANK] ?? null,
           avgRank:   avgRank90,
