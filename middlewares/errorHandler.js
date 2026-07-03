@@ -28,6 +28,16 @@ export const errorHandler = (err, req, res, next) => {
     return sendError(res, "Validation failed", 400, "VALIDATION_ERROR", details);
   }
 
+  // ── Malformed JSON body ───────────────────────────────────────────────────
+  if (err.type === "entity.parse.failed") {
+    return sendError(res, "Invalid JSON body", 400, "INVALID_JSON");
+  }
+
+  // ── Payload too large ─────────────────────────────────────────────────────
+  if (err.type === "entity.too.large" || err.status === 413) {
+    return sendError(res, "Request body too large", 413, "PAYLOAD_TOO_LARGE");
+  }
+
   // ── Prisma known errors ───────────────────────────────────────────────────
   if (err.code === "P2002") {
     // Unique constraint violation

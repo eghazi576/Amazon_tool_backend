@@ -1,5 +1,15 @@
 import prisma from "../../db/prisma.js";
 
+const SEARCH_SELECT = {
+  id: true, createdAt: true, asin: true, title: true, brand: true, image: true,
+  category: true, sellingPrice: true, medianPrice90d: true, profitPerUnit: true,
+  roiPct: true, marginPct: true, referralFee: true, fbaFee: true, storageFee: true,
+  totalFees: true, cogs: true, breakEvenPrice: true, decision: true, score: true,
+  maxScore: true, scorePct: true, rejectionReasons: true, currentBsr: true,
+  avgBsr90d: true, rating: true, reviewCount: true, fbaSellerCount: true,
+  monthlySalesEst: true, monthlyRevenue: true, isHazmat: true, amazonIsSeller: true,
+};
+
 export const searchModel = {
   /**
    * Save a new ASIN search record.
@@ -39,6 +49,7 @@ export const searchModel = {
         isHazmat:        data.isHazmat ?? false,
         amazonIsSeller:  data.amazonIsSeller ?? false,
       },
+      select: SEARCH_SELECT,
     }),
 
   /**
@@ -50,6 +61,7 @@ export const searchModel = {
       orderBy: { createdAt: "desc" },
       take:    limit,
       skip:    offset,
+      select:  SEARCH_SELECT,
     }),
 
   /**

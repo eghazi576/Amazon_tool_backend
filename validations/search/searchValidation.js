@@ -1,11 +1,14 @@
 import { z } from "zod";
 
+const stripHtml = (s) => s.replace(/<[^>]*>/g, "").trim();
+const safeStr   = z.string().transform(stripHtml).optional().nullable();
+
 export const saveSearchSchema = z.object({
   asin:             z.string().length(10, "ASIN must be exactly 10 characters").toUpperCase(),
-  title:            z.string().optional().nullable(),
-  brand:            z.string().optional().nullable(),
+  title:            safeStr,
+  brand:            safeStr,
   image:            z.string().url().optional().nullable(),
-  category:         z.string().optional().nullable(),
+  category:         safeStr,
   sellingPrice:     z.number().positive().optional().nullable(),
   medianPrice:      z.number().positive().optional().nullable(),
   profit:           z.number().optional().nullable(),
