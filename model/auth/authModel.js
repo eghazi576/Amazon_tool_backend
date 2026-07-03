@@ -2,25 +2,26 @@ import prisma from "../../db/prisma.js";
 
 export const authModel = {
   /**
-   * Find user by email.
-   * @param {string} email
+   * Find user by email — returns only fields needed for login/auth.
+   * Excludes resetPasswordToken to prevent accidental token leakage via logs.
    */
   findByEmail: (email) =>
-    prisma.user.findUnique({ where: { email } }),
+    prisma.user.findUnique({
+      where:  { email },
+      select: { id: true, email: true, password: true, createdAt: true },
+    }),
 
   /**
-   * Find user by ID.
-   * @param {string} id
+   * Find user by ID — public profile fields only.
    */
   findById: (id) =>
     prisma.user.findUnique({
-      where: { id },
+      where:  { id },
       select: { id: true, email: true, createdAt: true },
     }),
 
   /**
    * Create a new user.
-   * @param {{ email: string, password: string }} data
    */
   create: (data) =>
     prisma.user.create({
@@ -33,12 +34,14 @@ export const authModel = {
    */
   setResetToken: (id, token, expiry) =>
     prisma.user.update({
-      where: { id },
-      data: { resetPasswordToken: token, resetPasswordExpiry: expiry },
+      where:  { id },
+      data:   { resetPasswordToken: token, resetPasswordExpiry: expiry },
+      select: { id: true },
     }),
 
   /**
    * Find user by a valid (not-expired) reset token.
+   * Returns only id — nothing else needed for the reset flow.
    */
   findByResetToken: (token) =>
     prisma.user.findFirst({
@@ -46,6 +49,7 @@ export const authModel = {
         resetPasswordToken:  token,
         resetPasswordExpiry: { gt: new Date() },
       },
+      select: { id: true },
     }),
 
   /**
@@ -53,12 +57,12 @@ export const authModel = {
    */
   updatePasswordAndClearToken: (id, hashedPassword) =>
     prisma.user.update({
-      where: { id },
+      where:  { id },
       data: {
         password:            hashedPassword,
         resetPasswordToken:  null,
         resetPasswordExpiry: null,
       },
-      select: { id: true, email: true, createdAt: true },
+      select: { id: true },
     }),
 };

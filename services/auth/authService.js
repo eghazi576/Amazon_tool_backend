@@ -45,7 +45,7 @@ export const authService = {
     }
 
     const token = signToken({ userId: user.id, email: user.email });
-    const { password: _, resetPasswordToken: __, resetPasswordExpiry: ___, updatedAt: ____, ...safeUser } = user;
+    const { password: _, ...safeUser } = user;
 
     return { user: { ...safeUser, isAdmin: isAdmin(safeUser.email) }, token };
   },

@@ -3,6 +3,24 @@ import { brandSearchService } from "../../services/brandSearch/brandSearchServic
 import { sendSuccess } from "../../utils/response.js";
 import { z } from "zod";
 
+const weightSchema = z.record(z.string(), z.number().min(0).max(100));
+
+const scoringConfigSchema = z.object({
+  maxBsr:          z.number().positive().optional(),
+  minMonthlySales: z.number().nonnegative().optional(),
+  minRoi:          z.number().nonnegative().optional(),
+  minFbaSellers:   z.number().nonnegative().optional(),
+  maxFbaSellers:   z.number().positive().optional(),
+  minRating:       z.number().min(0).max(5).optional(),
+  minReviews:      z.number().nonnegative().optional(),
+  minPrice:        z.number().nonnegative().optional(),
+  excellentPct:    z.number().min(0).max(100).optional(),
+  goodPct:         z.number().min(0).max(100).optional(),
+  averagePct:      z.number().min(0).max(100).optional(),
+  approvalPct:     z.number().min(0).max(100).optional(),
+  weights:         weightSchema.optional(),
+});
+
 const searchesQuerySchema = z.object({
   limit:    z.coerce.number().int().min(1).max(200).default(50),
   offset:   z.coerce.number().int().min(0).default(0),
@@ -47,7 +65,8 @@ export const adminController = {
 
   async saveScoringConfig(req, res, next) {
     try {
-      const config = await adminService.saveScoringConfig(req.body);
+      const dto    = scoringConfigSchema.parse(req.body);
+      const config = await adminService.saveScoringConfig(dto);
       return sendSuccess(res, config, "Scoring config saved");
     } catch (err) { next(err); }
   },
@@ -69,7 +88,8 @@ export const adminController = {
 
   async saveBrandScoringConfig(req, res, next) {
     try {
-      const config = await adminService.saveBrandScoringConfig(req.body);
+      const dto    = scoringConfigSchema.parse(req.body);
+      const config = await adminService.saveBrandScoringConfig(dto);
       return sendSuccess(res, config, "Brand scoring config saved");
     } catch (err) { next(err); }
   },

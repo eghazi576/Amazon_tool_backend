@@ -1,5 +1,15 @@
 import prisma from "../../db/prisma.js";
 
+const BRAND_SELECT = {
+  id: true, createdAt: true, asin: true, brandName: true, brandWebsite: true,
+  category: true, decision: true, score: true, maxScore: true, scorePct: true,
+  rejected: true, rejectionReasons: true, explanation: true,
+  hasRegisteredBusiness: true, hazmatHeavyCatalog: true, adultOrHighRisk: true,
+  massAccountTakedowns: true, lastSaleWithin30Days: true, ipComplaintsLast12Mo: true,
+  ipAlertRedFlags: true, fbaSellersPerAsin: true, monthlySalesPerAsin: true,
+  mapViolationSensitive: true,
+};
+
 export const brandSearchModel = {
   create: (userId, data) =>
     prisma.brandSearch.create({
@@ -35,6 +45,7 @@ export const brandSearchModel = {
       orderBy: { createdAt: "desc" },
       take:    limit,
       skip:    offset,
+      select:  BRAND_SELECT,
     }),
 
   countByUser: (userId) =>
