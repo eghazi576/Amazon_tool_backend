@@ -2,10 +2,11 @@
 import "./config/env.js";
 import { env } from "./config/env.js";
 
-import express     from "express";
-import cors        from "cors";
-import helmet      from "helmet";
-import rateLimit   from "express-rate-limit";
+import express      from "express";
+import cors         from "cors";
+import helmet       from "helmet";
+import rateLimit    from "express-rate-limit";
+import cookieParser from "cookie-parser";
 import routes      from "./routes/index.js";
 import { errorHandler } from "./middlewares/errorHandler.js";
 import { sendSuccess, sendError } from "./utils/response.js";
@@ -24,9 +25,11 @@ app.use(helmet({
 }));
 app.use(cors({
   origin:       env.CORS_ORIGIN === "*" ? "*" : env.CORS_ORIGIN.split(","),
-  methods:      ["GET", "POST", "DELETE", "OPTIONS"],
+  methods:      ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
+  credentials:  true,
 }));
+app.use(cookieParser());
 app.use(express.json({ limit: "100kb" }));
 
 // ─── Rate Limiting ────────────────────────────────────────────────────────────

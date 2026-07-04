@@ -65,4 +65,18 @@ export const authModel = {
       },
       select: { id: true },
     }),
+
+  // ─── Refresh token CRUD ───────────────────────────────────────────────────
+
+  createRefreshToken: (data) =>
+    prisma.refreshToken.create({ data }),
+
+  findRefreshToken: (tokenHash) =>
+    prisma.refreshToken.findUnique({ where: { tokenHash } }),
+
+  deleteRefreshToken: (id) =>
+    prisma.refreshToken.delete({ where: { id } }),
+
+  deleteUserRefreshTokens: (userId) =>
+    prisma.refreshToken.deleteMany({ where: { userId } }),
 };
