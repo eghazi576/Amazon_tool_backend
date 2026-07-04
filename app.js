@@ -13,8 +13,8 @@ import prisma      from "./db/prisma.js";
 
 const app = express();
 
-// Trust Nginx reverse proxy
-app.set("trust proxy", 1);
+// Trust Cloudflare + Nginx reverse proxy layers
+app.set("trust proxy", true);
 
 // ─── Core Middleware ──────────────────────────────────────────────────────────
 app.use(helmet({
