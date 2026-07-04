@@ -13,8 +13,8 @@ import prisma      from "./db/prisma.js";
 
 const app = express();
 
-// Trust Cloudflare + Nginx reverse proxy layers
-app.set("trust proxy", true);
+// Trust 1 hop (Nginx on same machine); Cloudflare sits before Nginx
+app.set("trust proxy", 1);
 
 // ─── Core Middleware ──────────────────────────────────────────────────────────
 app.use(helmet({
@@ -30,26 +30,29 @@ app.use(express.json({ limit: "100kb" }));
 
 // ─── Rate Limiting ────────────────────────────────────────────────────────────
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000,
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { trustProxy: false },
   message: { success: false, error: "Too many requests, please try again later.", code: "RATE_LIMITED" },
 });
 
 const keepaLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
+  windowMs: 60 * 1000,
   max: 30,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { trustProxy: false },
   message: { success: false, error: "Too many Keepa requests, please slow down.", code: "RATE_LIMITED" },
 });
 
 const searchLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
+  windowMs: 60 * 1000,
   max: 60,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { trustProxy: false },
   message: { success: false, error: "Too many requests, please slow down.", code: "RATE_LIMITED" },
 });
 
