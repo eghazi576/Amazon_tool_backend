@@ -13,8 +13,9 @@ import prisma      from "./db/prisma.js";
 
 const app = express();
 
-// Trust 1 hop (Nginx on same machine); Cloudflare sits before Nginx
-app.set("trust proxy", 1);
+// Trust 2 hops: Cloudflare (external) + Nginx (local)
+// This makes req.ip = real client IP instead of Cloudflare edge IP
+app.set("trust proxy", 2);
 
 // ─── Core Middleware ──────────────────────────────────────────────────────────
 app.use(helmet({
