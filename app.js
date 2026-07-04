@@ -33,31 +33,42 @@ app.use(cookieParser());
 app.use(express.json({ limit: "100kb" }));
 
 // ─── Rate Limiting ────────────────────────────────────────────────────────────
+const RL_BASE = { standardHeaders: true, legacyHeaders: false, validate: { trustProxy: false } };
+const rlMsg   = (msg) => ({ success: false, error: msg, code: "RATE_LIMITED" });
+
 const authLimiter = rateLimit({
+  ...RL_BASE,
   windowMs: 15 * 60 * 1000,
   max: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
-  validate: { trustProxy: false },
-  message: { success: false, error: "Too many requests, please try again later.", code: "RATE_LIMITED" },
+  message: rlMsg("Too many requests, please try again later."),
 });
 
 const keepaLimiter = rateLimit({
+  ...RL_BASE,
   windowMs: 60 * 1000,
   max: 30,
-  standardHeaders: true,
-  legacyHeaders: false,
-  validate: { trustProxy: false },
-  message: { success: false, error: "Too many Keepa requests, please slow down.", code: "RATE_LIMITED" },
+  message: rlMsg("Too many Keepa requests, please slow down."),
 });
 
 const searchLimiter = rateLimit({
+  ...RL_BASE,
   windowMs: 60 * 1000,
   max: 60,
-  standardHeaders: true,
-  legacyHeaders: false,
-  validate: { trustProxy: false },
-  message: { success: false, error: "Too many requests, please slow down.", code: "RATE_LIMITED" },
+  message: rlMsg("Too many requests, please slow down."),
+});
+
+const brandLimiter = rateLimit({
+  ...RL_BASE,
+  windowMs: 60 * 1000,
+  max: 40,
+  message: rlMsg("Too many brand requests, please slow down."),
+});
+
+const adminLimiter = rateLimit({
+  ...RL_BASE,
+  windowMs: 60 * 1000,
+  max: 60,
+  message: rlMsg("Too many admin requests, please slow down."),
 });
 
 // ─── Health Check (internal use only) ────────────────────────────────────────
@@ -71,9 +82,11 @@ app.get("/health", async (req, res) => {
 });
 
 // ─── API Routes ───────────────────────────────────────────────────────────────
-app.use("/api/auth",   authLimiter);
-app.use("/api/keepa",  keepaLimiter);
-app.use("/api/search", searchLimiter);
+app.use("/api/auth",         authLimiter);
+app.use("/api/keepa",        keepaLimiter);
+app.use("/api/search",       searchLimiter);
+app.use("/api/brand-history", brandLimiter);
+app.use("/api/admin",        adminLimiter);
 app.use("/api", routes);
 
 // ─── 404 Handler ─────────────────────────────────────────────────────────────

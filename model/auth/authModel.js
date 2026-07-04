@@ -71,6 +71,11 @@ export const authModel = {
   createRefreshToken: (data) =>
     prisma.refreshToken.create({ data }),
 
+  deleteExpiredUserRefreshTokens: (userId) =>
+    prisma.refreshToken.deleteMany({
+      where: { userId, expiresAt: { lt: new Date() } },
+    }),
+
   findRefreshToken: (tokenHash) =>
     prisma.refreshToken.findUnique({ where: { tokenHash } }),
 

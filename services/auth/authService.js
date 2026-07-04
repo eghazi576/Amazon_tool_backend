@@ -15,13 +15,15 @@ const hashToken = (token) => createHash("sha256").update(token).digest("hex");
 
 const REFRESH_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-async function issueTokenPair(user) {
+async function issueTokenPair(user, cleanupExpired = false) {
   const accessToken  = signToken({ userId: user.id, email: user.email });
   const rawRefresh   = randomBytes(40).toString("hex");
   const tokenHash    = hashToken(rawRefresh);
   const expiresAt    = new Date(Date.now() + REFRESH_TTL_MS);
 
-  await authModel.createRefreshToken({ userId: user.id, tokenHash, expiresAt });
+  const ops = [authModel.createRefreshToken({ userId: user.id, tokenHash, expiresAt })];
+  if (cleanupExpired) ops.push(authModel.deleteExpiredUserRefreshTokens(user.id));
+  await Promise.all(ops);
 
   return { accessToken, refreshToken: rawRefresh };
 }
@@ -45,7 +47,7 @@ export const authService = {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) throw new AppError("Invalid email or password", 401, "INVALID_CREDENTIALS");
 
-    const { accessToken, refreshToken } = await issueTokenPair(user);
+    const { accessToken, refreshToken } = await issueTokenPair(user, true);
     const { password: _, ...safeUser } = user;
 
     return { user: { ...safeUser, isAdmin: isAdmin(safeUser.email) }, accessToken, refreshToken };
@@ -87,17 +89,19 @@ export const authService = {
   async forgotPassword({ email }) {
     const user = await authModel.findByEmail(email);
     if (user) {
-      const token  = randomBytes(32).toString("hex");
-      const expiry = new Date(Date.now() + 60 * 60 * 1000);
-      await authModel.setResetToken(user.id, token, expiry);
-      const resetUrl = `/reset-password?token=${token}`;
+      const rawToken   = randomBytes(32).toString("hex");
+      const tokenHash  = hashToken(rawToken);
+      const expiry     = new Date(Date.now() + 60 * 60 * 1000);
+      await authModel.setResetToken(user.id, tokenHash, expiry);
+      const resetUrl = `/reset-password?token=${rawToken}`;
       if (env.NODE_ENV !== "production") console.log(`[DEV] Reset link for ${email}: ${resetUrl}`);
     }
     return {};
   },
 
   async resetPassword({ token, password }) {
-    const user = await authModel.findByResetToken(token);
+    const tokenHash = hashToken(token);
+    const user = await authModel.findByResetToken(tokenHash);
     if (!user) throw new AppError("Invalid or expired reset token", 400, "INVALID_RESET_TOKEN");
 
     const hashed = await bcrypt.hash(password, 12);
