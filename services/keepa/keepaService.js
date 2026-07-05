@@ -1,5 +1,8 @@
 import { env } from "../../config/env.js";
 import { AppError } from "../../utils/response.js";
+import prisma from "../../db/prisma.js";
+
+const CACHE_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
 import {
   CSV,
   parseCsvSeries,
@@ -32,29 +35,50 @@ export const keepaService = {
     const now       = Date.now();
     const cutoff90d = now - 90 * 24 * 60 * 60 * 1000;
 
-    // ── Keepa API request ────────────────────────────────────────────────────
-    const url = new URL("https://api.keepa.com/product");
-    url.searchParams.set("key",    env.KEEPA_API_KEY);
-    url.searchParams.set("domain", String(domain));
-    url.searchParams.set("asin",   cleanAsin);
-    url.searchParams.set("stats",  "90");
-    url.searchParams.set("buybox", "1");
-    url.searchParams.set("rating", "1");
-    url.searchParams.set("offers", "20");
+    // ── Cache lookup ─────────────────────────────────────────────────────────
+    let product    = null;
+    let tokensLeft = null;
 
-    const keepaResp = await fetch(url.toString());
-    const keepaData = await keepaResp.json();
+    const cached = await prisma.keepaCache.findUnique({
+      where: { asin_domain: { asin: cleanAsin, domain } },
+    }).catch(() => null);
 
-    console.log("[Keepa] status:", keepaResp.status, "| tokensLeft:", keepaData.tokensLeft);
+    if (cached && (now - new Date(cached.cachedAt).getTime()) < CACHE_TTL_MS) {
+      console.log("[Keepa] cache HIT:", cleanAsin);
+      product    = cached.rawProduct;
+      tokensLeft = cached.tokensLeft;
+    } else {
+      // ── Keepa API request ──────────────────────────────────────────────────
+      const url = new URL("https://api.keepa.com/product");
+      url.searchParams.set("key",    env.KEEPA_API_KEY);
+      url.searchParams.set("domain", String(domain));
+      url.searchParams.set("asin",   cleanAsin);
+      url.searchParams.set("stats",  "90");
+      url.searchParams.set("buybox", "1");
+      url.searchParams.set("rating", "1");
+      url.searchParams.set("offers", "20");
 
-    if (!keepaResp.ok || keepaData.error) {
-      const msg = KEEPA_ERROR_MESSAGES[keepaData.error] ?? `Keepa error code: ${keepaData.error}`;
-      throw new AppError(msg, 400, "KEEPA_ERROR", { keepaError: keepaData.error });
-    }
+      const keepaResp = await fetch(url.toString());
+      const keepaData = await keepaResp.json();
 
-    const product = keepaData?.products?.[0];
-    if (!product) {
-      throw new AppError("Product not found on Keepa", 404, "PRODUCT_NOT_FOUND");
+      console.log("[Keepa] cache MISS — status:", keepaResp.status, "| tokensLeft:", keepaData.tokensLeft);
+
+      if (!keepaResp.ok || keepaData.error) {
+        const msg = KEEPA_ERROR_MESSAGES[keepaData.error] ?? `Keepa error code: ${keepaData.error}`;
+        throw new AppError(msg, 400, "KEEPA_ERROR", { keepaError: keepaData.error });
+      }
+
+      product = keepaData?.products?.[0];
+      if (!product) throw new AppError("Product not found on Keepa", 404, "PRODUCT_NOT_FOUND");
+
+      tokensLeft = keepaData.tokensLeft ?? null;
+
+      // Store in cache (fire-and-forget — don't block response)
+      prisma.keepaCache.upsert({
+        where:  { asin_domain: { asin: cleanAsin, domain } },
+        create: { asin: cleanAsin, domain, rawProduct: product, tokensLeft, cachedAt: new Date() },
+        update: { rawProduct: product, tokensLeft, cachedAt: new Date() },
+      }).catch((e) => console.warn("[Keepa] cache write failed:", e.message));
     }
 
     const csv   = product.csv || [];
@@ -277,7 +301,7 @@ export const keepaService = {
         offerCount: downsample(offerSeries),
         fbaCount:   downsample(fbaCtSeries),
       },
-      tokensLeft: keepaData.tokensLeft ?? null,
+      tokensLeft,
     };
   },
 };

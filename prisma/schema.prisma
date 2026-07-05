@@ -139,6 +139,18 @@ model BrandSearch {
   @@map("brand_searches")
 }
 
+// ─── Keepa Response Cache ─────────────────────────────────────────────────────
+model KeepaCache {
+  asin       String
+  domain     Int      @default(1)
+  rawProduct Json     @map("raw_product")
+  tokensLeft Int?     @map("tokens_left")
+  cachedAt   DateTime @default(now()) @map("cached_at")
+
+  @@id([asin, domain])
+  @@map("keepa_cache")
+}
+
 // ─── App Config (admin-controlled settings) ───────────────────────────────────
 model AppConfig {
   key       String   @id
