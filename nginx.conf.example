@@ -16,9 +16,17 @@
 #
 # TLS is terminated by Cloudflare; this origin only listens on port 80.
 # - apex -> www is the second server block below.
-# - http -> https is handled by Cloudflare (SSL/TLS -> Edge Certificates ->
-#   Always Use HTTPS). Do NOT do it here with $scheme: under Cloudflare's
-#   Flexible SSL the origin always sees $scheme = http, so it would loop forever.
+# - http -> https is the `if ($need_https)` line below, driven by the map. It is
+#   keyed on X-Forwarded-Proto (the client's real scheme), NOT $scheme -- under
+#   Cloudflare Flexible SSL the origin always sees $scheme = http, so a
+#   $scheme-based redirect would loop forever. The map defaults to 0 (no redirect)
+#   when the header is absent, so a direct origin hit can never loop either.
+
+# Cloudflare forwards the client's real scheme in X-Forwarded-Proto.
+map $http_x_forwarded_proto $need_https {
+    default 0;
+    http    1;
+}
 
 server {
     listen 80;
@@ -28,6 +36,10 @@ server {
     # absolute redirects as http://, downgrading the client. Relative Location
     # headers preserve whatever scheme the browser used.
     absolute_redirect off;
+
+    # http -> https. Safe because $need_https is 0 unless the client really used
+    # http (see the map above); it never fires on an https request.
+    if ($need_https) { return 301 https://$host$request_uri; }
 
     # The frontend deploy scps dist/* with strip_components: 1, so the built
     # files land here directly -- not in a dist/ subdirectory.

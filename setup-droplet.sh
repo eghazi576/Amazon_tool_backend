@@ -101,6 +101,13 @@ echo "→ Configuring Nginx..."
 SERVER_IP=$(curl -s ifconfig.me)
 
 cat > /etc/nginx/sites-available/amazon-tool <<EOF
+# Cloudflare forwards the client's real scheme in X-Forwarded-Proto. default 0
+# means "header absent -> do nothing", so a direct origin hit can never loop.
+map \$http_x_forwarded_proto \$need_https {
+    default 0;
+    http    1;
+}
+
 server {
     listen 80;
     server_name www.thewholesaleos.com $SERVER_IP;
@@ -109,6 +116,10 @@ server {
     # builds absolute redirects as http://, silently downgrading the client.
     # Relative Location headers keep whatever scheme the browser used.
     absolute_redirect off;
+
+    # http -> https, keyed on the client's real scheme (never on \$scheme, which
+    # is always http at the origin under Cloudflare Flexible SSL -> would loop).
+    if (\$need_https) { return 301 https://\$host\$request_uri; }
 
     # The deploy workflow scps dist/* with strip_components: 1, so the built
     # files land here directly -- not in a dist/ subdirectory.
