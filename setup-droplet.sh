@@ -105,11 +105,37 @@ server {
     listen 80;
     server_name $SERVER_IP;
 
-    root /var/www/amazon-frontend/dist;
+    # TLS terminates at Cloudflare, so nginx believes every request is http and
+    # builds absolute redirects as http://, silently downgrading the client.
+    # Relative Location headers keep whatever scheme the browser used.
+    absolute_redirect off;
+
+    # The deploy workflow scps dist/* with strip_components: 1, so the built
+    # files land here directly -- not in a dist/ subdirectory.
+    root /var/www/amazon-frontend;
     index index.html;
 
+    # Block dotfiles and anything that should never be served from the web root.
+    location ~ /\. {
+        deny all;
+        return 404;
+    }
+
+    location ~* \.(sql|bak|map|env|log|sh|key|pem|crt|conf|config|lock)\$ {
+        deny all;
+        return 404;
+    }
+
+    location ~ ^/(prisma|node_modules|\.git|\.github)/ {
+        deny all;
+        return 404;
+    }
+
     location / {
-        try_files \$uri \$uri/ /index.html;
+        # \$uri/ matches the *directory* faq/, and nginx's index module answers a
+        # slash-less directory request with a 301 to /faq/. The prerendered pages
+        # are canonicalised without a trailing slash, so match the file directly.
+        try_files \$uri \$uri/index.html /index.html;
     }
 
     location /api/ {
@@ -118,6 +144,7 @@ server {
         proxy_set_header   Host \$host;
         proxy_set_header   X-Real-IP \$remote_addr;
         proxy_set_header   X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto \$scheme;
     }
 
     location /health {
@@ -125,7 +152,7 @@ server {
     }
 
     gzip on;
-    gzip_types text/plain text/css application/json application/javascript;
+    gzip_types text/plain text/css application/json application/javascript application/xml;
 }
 EOF
 
