@@ -103,7 +103,7 @@ SERVER_IP=$(curl -s ifconfig.me)
 cat > /etc/nginx/sites-available/amazon-tool <<EOF
 server {
     listen 80;
-    server_name $SERVER_IP;
+    server_name www.thewholesaleos.com $SERVER_IP;
 
     # TLS terminates at Cloudflare, so nginx believes every request is http and
     # builds absolute redirects as http://, silently downgrading the client.
@@ -131,13 +131,6 @@ server {
         return 404;
     }
 
-    location / {
-        # \$uri/ matches the *directory* faq/, and nginx's index module answers a
-        # slash-less directory request with a 301 to /faq/. The prerendered pages
-        # are canonicalised without a trailing slash, so match the file directly.
-        try_files \$uri \$uri/index.html /index.html;
-    }
-
     location /api/ {
         proxy_pass         http://localhost:3001;
         proxy_http_version 1.1;
@@ -151,8 +144,35 @@ server {
         proxy_pass http://localhost:3001;
     }
 
+    # Soft-404 fix: unknown URLs return a real 404 page (prerendered to 404.html)
+    # with a 404 status, instead of the homepage shell with 200.
+    error_page 404 /404.html;
+    location = /404.html { internal; }
+
+    # Valid client-only routes have no prerendered file, so serve the SPA shell.
+    # Any NEW non-prerendered top-level route must be added here or it 404s on refresh.
+    location ^~ /dashboard      { try_files \$uri /index.html; }
+    location ^~ /admin          { try_files \$uri /index.html; }
+    location = /forgot-password { try_files \$uri /index.html; }
+    location = /reset-password  { try_files \$uri /index.html; }
+
+    location / {
+        # \$uri/ matches the *directory* faq/, and nginx's index module answers a
+        # slash-less directory request with a 301 to /faq/. Match the file
+        # directly (canonical URLs have no trailing slash); everything else 404s.
+        try_files \$uri \$uri/index.html =404;
+    }
+
     gzip on;
-    gzip_types text/plain text/css application/json application/javascript application/xml;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml;
+}
+
+# Apex -> www, 301. https is hardcoded: Cloudflare terminates TLS so the origin
+# always sees http, and \$scheme here would loop forever.
+server {
+    listen 80;
+    server_name thewholesaleos.com;
+    return 301 https://www.thewholesaleos.com\$request_uri;
 }
 EOF
 
