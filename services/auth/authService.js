@@ -1,7 +1,7 @@
 import bcrypt        from "bcryptjs";
 import { createHash, randomBytes } from "crypto";
 import { authModel }  from "../../model/auth/authModel.js";
-import { signToken, signRefreshToken, verifyRefreshToken } from "../../utils/jwt.js";
+import { signToken } from "../../utils/jwt.js";
 import { AppError }   from "../../utils/response.js";
 import { env }        from "../../config/env.js";
 
@@ -54,7 +54,19 @@ export const authService = {
   },
 
   async refresh(rawRefreshToken) {
-    verifyRefreshToken(rawRefreshToken);
+    if (!rawRefreshToken) throw new AppError("Invalid or expired refresh token", 401, "INVALID_REFRESH_TOKEN");
+
+    // The refresh token is an opaque 40-byte random value, not a JWT -- this is
+    // deliberate and stronger, because an opaque token can be revoked server-side
+    // (a JWT cannot). The security gate is the hashed lookup below, not signature
+    // verification.
+    //
+    // The line here used to be `verifyRefreshToken(rawRefreshToken)`, which ran
+    // jwt.verify() on that random hex. jwt.verify throws "jwt malformed" on
+    // anything that is not a JWT, so this endpoint returned 401 for EVERY refresh
+    // -- it failed closed, so it was never a hole, but it silently logged users
+    // out the moment their 15-minute access token expired. Removed; the DB lookup
+    // is what validates the token.
     const tokenHash = hashToken(rawRefreshToken);
     const stored    = await authModel.findRefreshToken(tokenHash);
 
@@ -113,7 +125,11 @@ export const authService = {
     if (user) {
       const rawToken   = randomBytes(32).toString("hex");
       const tokenHash  = hashToken(rawToken);
-      const expiry     = new Date(Date.now() + 60 * 60 * 1000);
+      // 15 minutes. A password-reset link is a bearer credential -- whoever holds
+      // it can change the password -- so its window should be short. It was 60
+      // minutes; an hour is a long time for a link sitting in an inbox or a mail
+      // provider's logs to remain live.
+      const expiry     = new Date(Date.now() + 15 * 60 * 1000);
       await authModel.setResetToken(user.id, tokenHash, expiry);
       const resetUrl = `/reset-password?token=${rawToken}`;
       // This log used to print the email AND the raw reset token. Anyone who could
