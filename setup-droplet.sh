@@ -67,21 +67,34 @@ mkdir -p /var/www/amazon-frontend/dist
 # ── 6. Backend .env ───────────────────────────────────────────
 echo ""
 echo "→ [6/7] Creating backend .env..."
+# config/env.js validates this file with zod on boot and calls process.exit(1) if
+# anything is missing. The previous version of this heredoc omitted
+# JWT_REFRESH_SECRET entirely, so a freshly built droplet would have failed to
+# start -- and CORS_ORIGIN pointed at the raw IP over http, which the real
+# frontend (https, on the domain) would then be blocked by.
+#
+# Both secrets are generated here and are DIFFERENT from each other on purpose:
+# if the access-token secret ever leaks, refresh tokens are still not forgeable.
 cat > /var/www/amazon-backend/.env <<EOF
 PORT=3001
 NODE_ENV=production
-CORS_ORIGIN=http://$(curl -s ifconfig.me)
+CORS_ORIGIN=https://www.thewholesaleos.com
 
 DATABASE_URL="postgresql://$DB_USER:$DB_PASS@localhost:5432/$DB_NAME"
 
 JWT_SECRET=$(openssl rand -hex 32)
-JWT_EXPIRES_IN=7d
+JWT_EXPIRES_IN=15m
+JWT_REFRESH_SECRET=$(openssl rand -hex 32)
+JWT_REFRESH_EXPIRES_IN=7d
 
 KEEPA_API_KEY=REPLACE_WITH_YOUR_KEEPA_KEY
+ADMIN_EMAILS=
 EOF
 
-echo "  ✓ .env created at /var/www/amazon-backend/.env"
-echo "  ⚠  Don't forget to replace KEEPA_API_KEY in that file!"
+chmod 600 /var/www/amazon-backend/.env
+
+echo "  ✓ .env created at /var/www/amazon-backend/.env (mode 600)"
+echo "  ⚠  Replace KEEPA_API_KEY in that file, or the backend will refuse to boot."
 
 # ── 7. Backend install + migrate + PM2 ───────────────────────
 echo ""
