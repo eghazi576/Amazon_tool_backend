@@ -37,3 +37,15 @@ export const resetPasswordSchema = z.object({
     .string({ required_error: "Password is required" })
     .min(8, "Password must be at least 8 characters"),
 });
+
+/**
+ * Deleting an account requires the current password, not just a session cookie.
+ * A stolen session, or an unlocked laptop, should not be enough to destroy
+ * someone's data.
+ */
+export const deleteAccountSchema = z.object({
+  password: z
+    .string({ required_error: "Password is required to delete your account" })
+    .min(1, "Password is required to delete your account")
+    .max(72, "Password too long"),
+});

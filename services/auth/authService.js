@@ -77,6 +77,28 @@ export const authService = {
     return { ...user, isAdmin: isAdmin(user.email) };
   },
 
+  /**
+   * Permanently delete the account and everything attached to it.
+   *
+   * The current password is required. A session cookie alone is not enough: if
+   * someone walks up to an unlocked laptop, or an XSS steals a session, account
+   * destruction should still need something they do not have. This is the same
+   * reason GitHub and Google ask you to re-authenticate before a destructive act.
+   *
+   * The cascade in prisma/schema.prisma does the rest -- searches, brand
+   * evaluations and refresh tokens all go with the user row.
+   */
+  async deleteAccount(userId, password) {
+    const user = await authModel.findByIdWithPassword(userId);
+    if (!user) throw new AppError("User not found", 404, "USER_NOT_FOUND");
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) throw new AppError("Password is incorrect", 401, "INVALID_CREDENTIALS");
+
+    await authModel.deleteUser(userId);
+    return {};
+  },
+
   async logout(rawRefreshToken) {
     if (rawRefreshToken) {
       const tokenHash = hashToken(rawRefreshToken);
@@ -94,7 +116,15 @@ export const authService = {
       const expiry     = new Date(Date.now() + 60 * 60 * 1000);
       await authModel.setResetToken(user.id, tokenHash, expiry);
       const resetUrl = `/reset-password?token=${rawToken}`;
-      if (env.NODE_ENV !== "production") console.log(`[DEV] Reset link for ${email}: ${resetUrl}`);
+      // This log used to print the email AND the raw reset token. Anyone who could
+      // read the dev log -- a shared terminal, a CI transcript, a screen share --
+      // could take over the account: the token in that URL is the only thing
+      // standing between them and a password change. The link is still printed
+      // because there is no mail sender yet and the flow is untestable without it,
+      // but the identity is gone from the line.
+      if (env.NODE_ENV !== "production") {
+        console.log(`[DEV] Password reset requested for [REDACTED]. Link: ${resetUrl}`);
+      }
     }
     return {};
   },

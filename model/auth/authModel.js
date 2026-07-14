@@ -21,6 +21,30 @@ export const authModel = {
     }),
 
   /**
+   * Find a user by ID *including* the password hash.
+   *
+   * Deliberately separate from findById(), which never selects the password.
+   * Only the delete-account flow uses this, and only to bcrypt.compare() the
+   * confirmation the user typed. The hash never leaves this file's caller.
+   */
+  findByIdWithPassword: (id) =>
+    prisma.user.findUnique({
+      where:  { id },
+      select: { id: true, email: true, password: true },
+    }),
+
+  /**
+   * Delete a user and everything belonging to them.
+   *
+   * AsinSearch, BrandSearch and RefreshToken all declare
+   * `onDelete: Cascade` on their user relation (prisma/schema.prisma), so this
+   * single delete removes the account, every product lookup, every brand
+   * evaluation and every session. There is nothing left to anonymise.
+   */
+  deleteUser: (id) =>
+    prisma.user.delete({ where: { id }, select: { id: true } }),
+
+  /**
    * Create a new user.
    */
   create: (data) =>
