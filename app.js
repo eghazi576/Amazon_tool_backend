@@ -144,9 +144,24 @@ app.use((req, res) => {
 app.use(errorHandler);
 
 // ─── Start Server ─────────────────────────────────────────────────────────────
-app.listen(env.PORT, () => {
+//
+// Bind to loopback only. nginx runs on the same host and proxies to
+// http://localhost:3001, so it can still reach the app -- but the internet
+// cannot. Before this, app.listen(PORT) bound 0.0.0.0, and the Node process was
+// directly reachable on the public IP at :3001.
+//
+// That was not theoretical. A request to http://<ip>:3001 sailed straight past
+// Cloudflare and nginx -- no WAF, no TLS, no edge rate limiting -- and because
+// trust proxy makes the limiter read X-Forwarded-For, an attacker could set that
+// header themselves and give every request a fresh "IP", making the login
+// rate limit count nothing. Demonstrated: 10 password guesses, 10 allowed.
+//
+// Binding to 127.0.0.1 closes that path at the application, independent of the
+// host firewall. In development, localhost is exactly what you connect to anyway.
+const HOST = "127.0.0.1";
+app.listen(env.PORT, HOST, () => {
   console.log(`\n✅  Amazon Insight Hub backend running`);
-  console.log(`   Port:          ${env.PORT}`);
+  console.log(`   Address:       ${HOST}:${env.PORT} (loopback only, behind nginx)`);
   console.log(`   Environment:   ${env.NODE_ENV}`);
   console.log(`   KEEPA_API_KEY: ${env.KEEPA_API_KEY ? "✓ set" : "✗ NOT SET"}`);
   console.log(`   DATABASE_URL:  ${env.DATABASE_URL ? "✓ set" : "✗ NOT SET"}\n`);

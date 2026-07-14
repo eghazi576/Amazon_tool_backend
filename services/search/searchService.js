@@ -1,3 +1,4 @@
+import { AppError } from "../../utils/response.js";
 import { searchModel } from "../../model/search/searchModel.js";
 
 export const searchService = {
@@ -24,7 +25,14 @@ export const searchService = {
    * Delete a single search entry.
    */
   async deleteOne(id, userId) {
-    await searchModel.deleteOne(id, userId);
+    // deleteMany scopes on { id, userId }, so a delete aimed at another user's
+    // entry matches zero rows -- the data is safe either way. But the endpoint
+    // used to return 200 "deleted" regardless of the count, telling the caller a
+    // row was removed when nothing was. Report the truth: 404 when nothing
+    // matched. "Not yours" and "does not exist" both return 404, so this reveals
+    // no ownership either.
+    const { count } = await searchModel.deleteOne(id, userId);
+    if (count === 0) throw new AppError("Entry not found", 404, "NOT_FOUND");
   },
 
   /**
