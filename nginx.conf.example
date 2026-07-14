@@ -46,6 +46,44 @@ server {
     root /var/www/amazon-frontend;
     index index.html;
 
+    # ── Security headers ───────────────────────────────────────────────────
+    # The API gets these from helmet. The HTML did not get them from anywhere:
+    # nginx served every page with no X-Frame-Options, no nosniff, no CSP and no
+    # HSTS. The pages are the part an attacker actually targets.
+    #
+    # `always` matters -- without it nginx omits the header on error responses,
+    # which is exactly when a clickjacking or sniffing trick would be aimed.
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=()" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    # CSP. This blocks the whole class of attacks where injected markup loads a
+    # script from somewhere else -- default-src and script-src are 'self' only, so
+    # <script src="https://evil.example/x.js"> simply does not run.
+    #
+    # Two allowances are load-bearing. Be honest about what they cost:
+    #
+    #   script-src 'unsafe-inline'  -- the prerendered HTML carries two inline
+    #       <script> blocks we put there ourselves: the theme flash-guard, and the
+    #       SPA fallback guard. Without this the pages break outright. It does mean
+    #       an injected INLINE script would still execute, so this is a real
+    #       weakening. The fix is to hash both blocks ('sha256-...') and drop
+    #       'unsafe-inline' -- worth doing, but the hashes change whenever those
+    #       scripts change, so it needs to be wired into the build rather than
+    #       pasted in once and left to rot.
+    #
+    #   style-src 'unsafe-inline'  -- React writes style attributes, and Tailwind
+    #       and sonner inject <style> at runtime. Inline CSS is a far weaker vector
+    #       than inline JS, and there is no practical way around it here.
+    #
+    # img-src allows Amazon's CDN because product images load straight from it.
+    # connect-src is the API and the site itself. frame-ancestors 'none' is the
+    # CSP-native X-Frame-Options: DENY, and unlike the header it is honoured by
+    # every modern browser.
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https://*.ssl-images-amazon.com https://*.media-amazon.com; connect-src 'self' https://www.thewholesaleos.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" always;
+
     # ── Block dotfiles and anything that must never leave the web root ──────
     location ~ /\. {
         deny all;

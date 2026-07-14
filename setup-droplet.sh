@@ -35,18 +35,66 @@ apt install -y postgresql postgresql-contrib
 systemctl start postgresql
 systemctl enable postgresql
 
-# Create DB user and database
+# ── Harden Postgres before creating anything in it ──────────────────────────
+#
+# The app connects over localhost, so the database never needs to be reachable
+# from the network. Two controls enforce that, and they are belt-and-suspenders
+# with the firewall (ufw), not a replacement for it:
+#
+#   listen_addresses = 'localhost'  -- Postgres itself refuses non-local TCP.
+#       Ubuntu already defaults to this, but we set it explicitly so a future
+#       edit or a different base image cannot silently open it to the world.
+#
+#   scram-sha-256 for host auth      -- password auth over a modern challenge,
+#       not md5 and certainly not `trust` (which is passwordless and would let
+#       anyone who reached the port in as any user).
+#
+# We deliberately do NOT enable TLS. The connection is loopback: the bytes never
+# leave the machine's network stack, so there is nobody on the wire to encrypt
+# against. Sniffing loopback needs root, and root already owns the database.
+# TLS would only become necessary if the database moved to a separate host (a
+# managed Postgres, another droplet) -- at which point add `?sslmode=verify-full`
+# to DATABASE_URL and point it at the CA, not before.
+PG_CONF="$(sudo -u postgres psql -tAc 'SHOW config_file;')"
+PG_HBA="$(sudo -u postgres psql -tAc 'SHOW hba_file;')"
+
+sed -i "s/^#\?listen_addresses.*/listen_addresses = 'localhost'/" "$PG_CONF"
+
+# Any md5 host rules -> scram-sha-256. (No effect if already scram.)
+sed -i -E 's/^(host\s+.*)\bmd5\b/\1scram-sha-256/' "$PG_HBA"
+# Refuse to proceed if pg_hba has a `trust` line for a TCP host -- passwordless
+# network auth is never acceptable, and silently "fixing" it could lock someone
+# out, so make it loud instead.
+if grep -qE '^host\s+.*\btrust\b' "$PG_HBA"; then
+  echo "  ⚠  pg_hba.conf has a host ... trust rule (passwordless). Remove it before going live:"
+  grep -nE '^host\s+.*\btrust\b' "$PG_HBA" | sed 's/^/       /'
+fi
+
+systemctl restart postgresql
+
+# Create DB user and database. The password is a 24-byte openssl value from the
+# top of this script -- never a default, never reused.
 sudo -u postgres psql <<SQL
 CREATE USER $DB_USER WITH PASSWORD '$DB_PASS';
 CREATE DATABASE $DB_NAME OWNER $DB_USER;
 GRANT ALL PRIVILEGES ON DATABASE $DB_NAME TO $DB_USER;
 SQL
 
+# Lock the built-in superuser: give `postgres` a strong password so it is not an
+# unauthenticated way in, and revoke the public schema's create-for-everyone
+# default so a compromised app role cannot scribble across the database.
+POSTGRES_SUPER_PASS="$(openssl rand -base64 24)"
+sudo -u postgres psql <<SQL
+ALTER USER postgres WITH PASSWORD '$POSTGRES_SUPER_PASS';
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+SQL
+
 echo ""
-echo "  ✓ Database created"
+echo "  ✓ Database created and hardened (localhost-only, scram-sha-256)"
 echo "  DB_USER: $DB_USER"
 echo "  DB_NAME: $DB_NAME"
 echo "  DB_PASS: $DB_PASS   ← SAVE THIS!"
+echo "  postgres superuser password: $POSTGRES_SUPER_PASS   ← SAVE THIS TOO!"
 
 # ── 4. Nginx ─────────────────────────────────────────────────
 echo ""
