@@ -4,6 +4,7 @@ import {
   loginSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
+  deleteAccountSchema,
 } from "../../validations/auth/authValidation.js";
 import { sendSuccess } from "../../utils/response.js";
 import { env } from "../../config/env.js";
@@ -91,6 +92,22 @@ export const authController = {
       await authService.resetPassword(dto);
       clearAuthCookies(res);
       return sendSuccess(res, {}, "Password reset successfully");
+    } catch (err) { next(err); }
+  },
+
+  /**
+   * Permanently delete the account and everything attached to it.
+   *
+   * The Privacy Policy promises this, so it has to exist as a real endpoint --
+   * and it deletes rather than anonymises. The cascade in the schema takes the
+   * searches, brand evaluations and sessions with it.
+   */
+  async deleteAccount(req, res, next) {
+    try {
+      const { password } = deleteAccountSchema.parse(req.body);
+      await authService.deleteAccount(req.userId, password);
+      clearAuthCookies(res);
+      return sendSuccess(res, {}, "Account and all associated data permanently deleted");
     } catch (err) { next(err); }
   },
 };

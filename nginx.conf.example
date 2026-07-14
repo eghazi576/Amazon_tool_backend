@@ -1,36 +1,115 @@
 # /etc/nginx/sites-available/amazon-tool
-# Copy this file to /etc/nginx/sites-available/amazon-tool
-# then: ln -s /etc/nginx/sites-available/amazon-tool /etc/nginx/sites-enabled/
+#
+# This mirrors what actually runs in production (dumped from the droplet on
+# 2026-07-10). Keep it in sync: if you change nginx on the server, update this
+# file too, and vice versa.
+#
+# Install:
+#   cp nginx.conf.example /etc/nginx/sites-available/amazon-tool
+#   ln -sf /etc/nginx/sites-available/amazon-tool /etc/nginx/sites-enabled/amazon-tool
+#   nginx -t && systemctl reload nginx
+#
+# Keep sites-enabled/amazon-tool a SYMLINK, never a copy. On 2026-07-10 the two
+# had silently diverged: nginx served sites-enabled while every edit landed in
+# sites-available, so `nginx -t` passed and nothing changed. Verify with:
+#   ls -l /etc/nginx/sites-enabled/amazon-tool     # expect  l...  -> ../sites-available/...
+#
+# TLS is terminated by Cloudflare; this origin only listens on port 80.
+# - apex -> www is the second server block below.
+# - http -> https is the `if ($need_https)` line below, driven by the map. It is
+#   keyed on X-Forwarded-Proto (the client's real scheme), NOT $scheme -- under
+#   Cloudflare Flexible SSL the origin always sees $scheme = http, so a
+#   $scheme-based redirect would loop forever. The map defaults to 0 (no redirect)
+#   when the header is absent, so a direct origin hit can never loop either.
+
+# Cloudflare forwards the client's real scheme in X-Forwarded-Proto.
+map $http_x_forwarded_proto $need_https {
+    default 0;
+    http    1;
+}
 
 server {
     listen 80;
-    server_name YOUR_DOMAIN_OR_IP;
+    server_name www.thewholesaleos.com YOUR_SERVER_IP;
 
-    # ── Frontend (React build) ─────────────────────────────────
+    # Cloudflare terminates TLS, so nginx thinks every request is http and builds
+    # absolute redirects as http://, downgrading the client. Relative Location
+    # headers preserve whatever scheme the browser used.
+    absolute_redirect off;
+
+    # http -> https. Safe because $need_https is 0 unless the client really used
+    # http (see the map above); it never fires on an https request.
+    if ($need_https) { return 301 https://$host$request_uri; }
+
+    # The frontend deploy scps dist/* with strip_components: 1, so the built
+    # files land here directly -- not in a dist/ subdirectory.
     root /var/www/amazon-frontend;
     index index.html;
 
-    location / {
-        try_files $uri $uri/ /index.html;
+    # ── Block dotfiles and anything that must never leave the web root ──────
+    location ~ /\. {
+        deny all;
+        return 404;
     }
 
-    # ── Backend API (proxied to Node on port 3001) ─────────────
+    location ~* \.(sql|bak|map|env|log|sh|key|pem|crt|conf|config|lock)$ {
+        deny all;
+        return 404;
+    }
+
+    location ~ ^/(prisma|node_modules|\.git|\.github)/ {
+        deny all;
+        return 404;
+    }
+
+    # ── Backend API (proxied to Node on port 3001) ─────────────────────────
     location /api/ {
         proxy_pass         http://localhost:3001;
         proxy_http_version 1.1;
-        proxy_set_header   Upgrade $http_upgrade;
-        proxy_set_header   Connection 'upgrade';
         proxy_set_header   Host $host;
         proxy_set_header   X-Real-IP $remote_addr;
         proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_cache_bypass $http_upgrade;
+        proxy_set_header   X-Forwarded-Proto $scheme;
     }
 
     location /health {
         proxy_pass http://localhost:3001;
     }
 
-    # ── Gzip ───────────────────────────────────────────────────
+    # ── Soft-404 fix ───────────────────────────────────────────────────────
+    # Unknown URLs used to return the homepage shell with HTTP 200 (a soft 404),
+    # which Google indexes as duplicates of the homepage. The build prerenders a
+    # real 404.html; serve it with a 404 status for anything that is neither a
+    # file nor a known client route.
+    error_page 404 /404.html;
+    location = /404.html { internal; }
+
+    # Valid client-only routes have no prerendered file, so serve the SPA shell.
+    # NOTE: any NEW top-level client route that is not prerendered must be added
+    # here, or it will 404 on a hard refresh.
+    location ^~ /dashboard      { try_files $uri /index.html; }
+    location ^~ /admin          { try_files $uri /index.html; }
+    location = /forgot-password { try_files $uri /index.html; }
+    location = /reset-password  { try_files $uri /index.html; }
+
+    # Prerendered routes (/, /faq, /sign-up, /sign-in) exist as files and match
+    # here directly. $uri/index.html resolves /faq to faq/index.html without the
+    # 301-to-trailing-slash that $uri/ would trigger. Everything else -> 404.
+    location / {
+        try_files $uri $uri/index.html =404;
+    }
+
+    # ── Gzip ───────────────────────────────────────────────────────────────
     gzip on;
     gzip_types text/plain text/css application/json application/javascript text/xml application/xml;
+}
+
+# ── Apex -> www, 301 ───────────────────────────────────────────────────────
+# https is hardcoded on purpose: Cloudflare terminates TLS, so the origin always
+# sees the request as http. Using $scheme here would 301 the client to http and
+# loop forever.
+server {
+    listen 80;
+    server_name thewholesaleos.com;
+    return 301 https://www.thewholesaleos.com$request_uri;
 }

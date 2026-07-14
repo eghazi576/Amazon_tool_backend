@@ -1,5 +1,6 @@
 import { ZodError } from "zod";
-import { AppError, sendError } from "../utils/response.js";
+import { sendError } from "../utils/response.js";
+import { redact, redactError } from "../utils/redact.js";
 import { env } from "../config/env.js";
 
 /**
@@ -54,10 +55,23 @@ export const errorHandler = (err, req, res, next) => {
   }
 
   // ── Unknown / unhandled ───────────────────────────────────────────────────
-  console.error("[Error]", err);
+  //
+  // This used to be `console.error("[Error]", err)`, dumping the whole object. A
+  // Prisma error embeds the failing query AND its parameters in its own message,
+  // so a database hiccup during registration wrote the user's email and their
+  // bcrypt hash straight into the server log. err.stack repeats the message, so
+  // scrubbing one without the other would have achieved nothing.
+  //
+  // redactError() keeps what debugs the problem (name, code, route, stack shape)
+  // and removes what identifies a person. See utils/redact.js.
+  console.error("[Error]", redactError(err, req));
+
   return sendError(
     res,
-    env.NODE_ENV === "production" ? "Internal server error" : err.message,
+    // Even in development the raw message is not returned: it is the same Prisma
+    // message that can carry an email or a hash, and it would be going to a
+    // browser rather than a log.
+    env.NODE_ENV === "production" ? "Internal server error" : redact(err.message),
     500,
     "INTERNAL_ERROR"
   );
