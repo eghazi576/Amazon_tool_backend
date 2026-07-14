@@ -17,6 +17,17 @@ import {
   calcProfit,
 } from "../../utils/keepa.js";
 
+
+/**
+ * Debug tracing. These lines ran unconditionally, so on every single ASIN lookup
+ * production wrote the ASIN, the product title, the entire category tree and each
+ * intermediate sales calculation to the server log.
+ *
+ * None of it is personal data -- it is Amazon's public catalogue -- but it buries
+ * the lines that matter and grows the log without bound on a box with one disk.
+ * Silent in production; unchanged everywhere else.
+ */
+const debug = env.NODE_ENV === "production" ? () => {} : (...args) => console.log(...args);
 const KEEPA_ERROR_MESSAGES = {
   1: "Request failed — check ASIN and API key",
   2: "Not enough Keepa tokens — wait or upgrade plan",
@@ -44,7 +55,7 @@ export const keepaService = {
     }).catch(() => null);
 
     if (cached && (now - new Date(cached.cachedAt).getTime()) < CACHE_TTL_MS) {
-      console.log("[Keepa] cache HIT:", cleanAsin);
+      debug("[Keepa] cache HIT:", cleanAsin);
       product    = cached.rawProduct;
       tokensLeft = cached.tokensLeft;
     } else {
@@ -61,7 +72,7 @@ export const keepaService = {
       const keepaResp = await fetch(url.toString());
       const keepaData = await keepaResp.json();
 
-      console.log("[Keepa] cache MISS — status:", keepaResp.status, "| tokensLeft:", keepaData.tokensLeft);
+      debug("[Keepa] cache MISS — status:", keepaResp.status, "| tokensLeft:", keepaData.tokensLeft);
 
       if (!keepaResp.ok || keepaData.error) {
         const msg = KEEPA_ERROR_MESSAGES[keepaData.error] ?? `Keepa error code: ${keepaData.error}`;
@@ -157,7 +168,7 @@ export const keepaService = {
       fbaCountFromOffers = liveOffers.filter(o => o.isFBA && o.condition === 1).length || null;
     }
     const resolvedFbaCount = fbaCountFromOffers ?? avgFbaCount90 ?? currentFbaCount;
-    console.log("[Keepa] FBA count — live offers:", fbaCountFromOffers, "| avg90:", avgFbaCount90, "| resolved:", resolvedFbaCount);
+    debug("[Keepa] FBA count — live offers:", fbaCountFromOffers, "| avg90:", avgFbaCount90, "| resolved:", resolvedFbaCount);
 
     const amazonLastPrice = lastValue(amazonSeries);
     const amazonIsSeller  = (product.availabilityAmazon != null && product.availabilityAmazon >= 0)
@@ -169,8 +180,8 @@ export const keepaService = {
     const rootCategory  = categoryTree.length ? categoryTree[0].name : null;
     const allCategories = categoryTree.map((c) => c.name).join(" | ");
 
-    console.log("[Keepa] categoryTree:", allCategories);
-    console.log("[Keepa] title:", product.title?.slice(0, 80));
+    debug("[Keepa] categoryTree:", allCategories);
+    debug("[Keepa] title:", product.title?.slice(0, 80));
 
     // ── Monthly sales estimate ────────────────────────────────────────────────
     const monthlySold = product.monthlySold ?? null;  // Amazon "Bought in past month" badge
@@ -199,7 +210,7 @@ export const keepaService = {
     else if (seriesDrops90 > 0)                                  monthlySalesEstimate = Math.round(seriesDrops90 / 3);
     else                                                         monthlySalesEstimate = bsrToSales(avgRank90, categoryName || rootCategory);
 
-    console.log("[Keepa] monthlySold:", monthlySold, "| series30:", seriesDrops30, "| drops30:", drops30, "| drops90:", drops90, "| estimate:", monthlySalesEstimate);
+    debug("[Keepa] monthlySold:", monthlySold, "| series30:", seriesDrops30, "| drops30:", drops30, "| drops90:", drops90, "| estimate:", monthlySalesEstimate);
 
     // ── Product attributes ────────────────────────────────────────────────────
     const packageWeightG   = product.packageWeight ?? null;
@@ -221,7 +232,7 @@ export const keepaService = {
     // ── Profit calculation ────────────────────────────────────────────────────
     const rawCategory       = allCategories || categoryName || rootCategory || "";
     const effectiveCategory = detectTrueCategory(rawCategory, product.title || "");
-    console.log("[Keepa] effectiveCategory:", effectiveCategory);
+    debug("[Keepa] effectiveCategory:", effectiveCategory);
 
     const profitCalc = calcProfit({
       sellingPrice:      sellingPrice || 0,

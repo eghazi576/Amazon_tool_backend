@@ -64,15 +64,19 @@ export const errorHandler = (err, req, res, next) => {
   //
   // redactError() keeps what debugs the problem (name, code, route, stack shape)
   // and removes what identifies a person. See utils/redact.js.
-  console.error("[Error]", redactError(err, req));
+  console.error("[Error]", { requestId: req.id, ...redactError(err, req) });
 
+  // The client gets a generic message and the request ID -- nothing about the
+  // query, the file paths or the database shape. The ID is what turns an
+  // unhelpful "it broke" into a line we can actually find in the log.
   return sendError(
     res,
-    // Even in development the raw message is not returned: it is the same Prisma
-    // message that can carry an email or a hash, and it would be going to a
-    // browser rather than a log.
+    // Even in development the raw message is withheld from the response: it is
+    // the same Prisma string that can carry an email or a bcrypt hash, and here
+    // it would be going to a browser rather than a log.
     env.NODE_ENV === "production" ? "Internal server error" : redact(err.message),
     500,
-    "INTERNAL_ERROR"
+    "INTERNAL_ERROR",
+    { requestId: req.id }
   );
 };
