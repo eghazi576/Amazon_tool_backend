@@ -30,16 +30,13 @@ export const currentFromStats = (stats, idx) => {
   return v == null || v === -1 ? null : v;
 };
 
-// Keepa's stats.min / stats.max entries are [timestamp, value] pairs (prices in
-// cents), or -1 when there is no data -- NOT the flat scalars that stats.current
-// holds. This reads the lowest ("Buy Box - Lowest") or highest ("Buy Box -
-// Highest") value for a CSV type. It prefers the interval-specific field
-// (minInInterval / maxInInterval) so the number matches the requested stats
-// window, then falls back to the plain min / max field.
+// Keepa's stats.min / stats.max are the ALL-TIME low / high for each CSV type --
+// i.e. Keepa's own "Buy Box - Lowest" and "Buy Box - Highest". Each entry is a
+// [timestamp, value] pair (prices in cents), or -1 when there is no data -- NOT
+// the flat scalars stats.current holds. (The 90-day interval extremes live in
+// minInInterval / maxInInterval; we deliberately use the all-time fields here.)
 export const statExtreme = (stats, kind, idx) => {
-  const key         = kind === "max" ? "max" : "min";
-  const intervalKey = kind === "max" ? "maxInInterval" : "minInInterval";
-  const entry = stats?.[intervalKey]?.[idx] ?? stats?.[key]?.[idx];
+  const entry = stats?.[kind === "max" ? "max" : "min"]?.[idx];
   const v = Array.isArray(entry) ? entry[1] : entry;
   return v == null || v < 0 ? null : v;
 };

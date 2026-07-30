@@ -104,6 +104,10 @@ export const keepaService = {
     const listSeries   = parsePriceSeries(csv[CSV.LIST_PRICE],    cutoff90d);
     const rankSeries     = parseCsvSeries(csv[CSV.SALES_RANK], cutoff90d);
     const rankSeriesFull = parseCsvSeries(csv[CSV.SALES_RANK]);   // no time cutoff — for currentRank fallback
+    // Full-history price series (no 90-day cutoff) for all-time min/max price.
+    const buyboxSeriesFull = parsePriceSeries(csv[CSV.BUYBOX]);
+    const newSeriesFull    = parsePriceSeries(csv[CSV.NEW]);
+    const priceSeriesFull  = buyboxSeriesFull.length ? buyboxSeriesFull : newSeriesFull;
     const reviewSeries = parseCsvSeries(csv[CSV.REVIEW_COUNT],    cutoff90d);
     const offerSeries  = parseCsvSeries(csv[CSV.OFFER_COUNT_NEW], cutoff90d);
     const fbaCtSeries  = parseCsvSeries(csv[CSV.OFFER_COUNT_FBA], cutoff90d);
@@ -285,31 +289,30 @@ export const keepaService = {
         priceTrend90,
         stats90: {
           avgBuyBox: medianBuyBox,
-          // Buy Box - Lowest / Highest, straight from Keepa's 90-day stats. The
-          // parsed Buy Box series (the chart) is the fallback if the stat is
-          // missing.
+          // All-time Buy Box - Lowest / Highest, straight from Keepa's stats. The
+          // full-history Buy Box series is the fallback if the stat is missing.
           minBuyBox: (() => {
             const s = statExtreme(stats, "min", CSV.BUYBOX);
             if (s != null && s > 0) return parseFloat((s / 100).toFixed(2));
-            const vals = priceSeries.map(p => p.v).filter(v => v > 0);
+            const vals = priceSeriesFull.map(p => p.v).filter(v => v > 0);
             return vals.length ? parseFloat(Math.min(...vals).toFixed(2)) : null;
           })(),
           maxBuyBox: (() => {
             const s = statExtreme(stats, "max", CSV.BUYBOX);
             if (s != null && s > 0) return parseFloat((s / 100).toFixed(2));
-            const vals = priceSeries.map(p => p.v).filter(v => v > 0);
+            const vals = priceSeriesFull.map(p => p.v).filter(v => v > 0);
             return vals.length ? parseFloat(Math.max(...vals).toFixed(2)) : null;
           })(),
           minRank: (() => {
             const s = statExtreme(stats, "min", CSV.SALES_RANK);
             if (s != null && s > 0) return s;
-            const vals = rankSeries.map(p => p.v).filter(v => v > 0);
+            const vals = rankSeriesFull.map(p => p.v).filter(v => v > 0);
             return vals.length ? Math.min(...vals) : null;
           })(),
           maxRank: (() => {
             const s = statExtreme(stats, "max", CSV.SALES_RANK);
             if (s != null && s > 0) return s;
-            const vals = rankSeries.map(p => p.v).filter(v => v > 0);
+            const vals = rankSeriesFull.map(p => p.v).filter(v => v > 0);
             return vals.length ? Math.max(...vals) : null;
           })(),
           avgRank:   avgRank90,
