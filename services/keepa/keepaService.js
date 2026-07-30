@@ -9,6 +9,7 @@ import {
   parsePriceSeries,
   lastValue,
   currentFromStats,
+  statExtreme,
   medianOf,
   downsample,
   detectRankSpike,
@@ -273,21 +274,33 @@ export const keepaService = {
         priceTrend90,
         stats90: {
           avgBuyBox: medianBuyBox,
+          // Buy Box - Lowest / Highest, straight from Keepa's 90-day stats. The
+          // parsed Buy Box series (the chart) is the fallback if the stat is
+          // missing.
           minBuyBox: (() => {
-            // Try Keepa stats first; fall back to series min
-            const s = stats.min90?.[CSV.BUYBOX];
-            if (s > 0) return parseFloat((s / 100).toFixed(2));
+            const s = statExtreme(stats, "min", CSV.BUYBOX);
+            if (s != null && s > 0) return parseFloat((s / 100).toFixed(2));
             const vals = priceSeries.map(p => p.v).filter(v => v > 0);
             return vals.length ? parseFloat(Math.min(...vals).toFixed(2)) : null;
           })(),
           maxBuyBox: (() => {
-            const s = stats.max90?.[CSV.BUYBOX];
-            if (s > 0) return parseFloat((s / 100).toFixed(2));
+            const s = statExtreme(stats, "max", CSV.BUYBOX);
+            if (s != null && s > 0) return parseFloat((s / 100).toFixed(2));
             const vals = priceSeries.map(p => p.v).filter(v => v > 0);
             return vals.length ? parseFloat(Math.max(...vals).toFixed(2)) : null;
           })(),
-          minRank:   stats.min90?.[CSV.SALES_RANK] ?? null,
-          maxRank:   stats.max90?.[CSV.SALES_RANK] ?? null,
+          minRank: (() => {
+            const s = statExtreme(stats, "min", CSV.SALES_RANK);
+            if (s != null && s > 0) return s;
+            const vals = rankSeries.map(p => p.v).filter(v => v > 0);
+            return vals.length ? Math.min(...vals) : null;
+          })(),
+          maxRank: (() => {
+            const s = statExtreme(stats, "max", CSV.SALES_RANK);
+            if (s != null && s > 0) return s;
+            const vals = rankSeries.map(p => p.v).filter(v => v > 0);
+            return vals.length ? Math.max(...vals) : null;
+          })(),
           avgRank:   avgRank90,
         },
       },
