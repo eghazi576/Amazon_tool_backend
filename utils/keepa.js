@@ -405,6 +405,8 @@ export function calcProfit({
   dimensions = null,
   monthlySales = null,
   manualReferralRate = null,
+  keepaReferralPercent = null, // Keepa's "Referral Fee %" for this product
+  keepaFbaFee = null,          // Keepa's "FBA Pick&Pack Fee" in dollars
 }) {
   if (!sellingPrice || sellingPrice <= 0) {
     return {
@@ -415,16 +417,25 @@ export function calcProfit({
     };
   }
 
+  // Referral fee: an explicit manual override wins, then Keepa's own
+  // "Referral Fee %", and only then our category rate table as a fallback.
   let referralFee, referralRate;
   if (manualReferralRate != null && manualReferralRate > 0) {
     referralRate = manualReferralRate / 100;
+    referralFee  = parseFloat(Math.max(sellingPrice * referralRate, 0.30).toFixed(2));
+  } else if (keepaReferralPercent != null && keepaReferralPercent > 0) {
+    referralRate = keepaReferralPercent / 100;
     referralFee  = parseFloat(Math.max(sellingPrice * referralRate, 0.30).toFixed(2));
   } else {
     referralFee  = parseFloat(calcReferralFee(category, sellingPrice, title).toFixed(2));
     referralRate = sellingPrice > 0 ? referralFee / sellingPrice : 0.15;
   }
 
-  const fbaFeeRaw = getFbaFee(weightG, dimensions, category, sellingPrice || 0);
+  // Fulfillment fee: Keepa's own "FBA Pick&Pack Fee" wins; fall back to the
+  // weight/dimension estimate when Keepa does not carry a fee for this product.
+  const fbaFeeRaw = (keepaFbaFee != null && keepaFbaFee > 0)
+    ? keepaFbaFee
+    : getFbaFee(weightG, dimensions, category, sellingPrice || 0);
   const fbaFee    = fbaFeeRaw != null ? parseFloat(fbaFeeRaw.toFixed(2)) : null;
 
   let storageFee = null;

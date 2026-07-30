@@ -235,6 +235,15 @@ export const keepaService = {
     const effectiveCategory = detectTrueCategory(rawCategory, product.title || "");
     debug("[Keepa] effectiveCategory:", effectiveCategory);
 
+    // Fees Keepa provides for this product, preferred over our own estimates.
+    // "FBA Pick&Pack Fee" comes in cents; "Referral Fee %" is a whole percent.
+    const keepaFbaFee = product.fbaFees?.pickAndPackFee > 0
+      ? parseFloat((product.fbaFees.pickAndPackFee / 100).toFixed(2))
+      : null;
+    const keepaReferralRaw = product.referralFeePercent ?? product.referralFeePercentage;
+    const keepaReferralPercent = keepaReferralRaw > 0 ? keepaReferralRaw : null;
+    debug("[Keepa] fees — pickAndPack:", keepaFbaFee, "| referral%:", keepaReferralPercent);
+
     const profitCalc = calcProfit({
       sellingPrice:      sellingPrice || 0,
       cogs,
@@ -244,6 +253,8 @@ export const keepaService = {
       dimensions,
       monthlySales:      monthlySalesEstimate,
       manualReferralRate,
+      keepaReferralPercent,
+      keepaFbaFee,
     });
 
     const monthlyRevenue = monthlySalesEstimate && sellingPrice
