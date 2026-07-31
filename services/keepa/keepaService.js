@@ -342,4 +342,34 @@ export const keepaService = {
       tokensLeft,
     };
   },
+
+  /**
+   * Proxy Keepa's rendered price/BSR chart image ("graphimage" endpoint).
+   * The API key stays server-side; the caller only ever sees the PNG.
+   * @param {{ asin: string, domain?: number, range?: number }} opts
+   * @returns {Promise<Buffer>} PNG bytes
+   */
+  async graphImage({ asin, domain = 1, range = 90 }) {
+    const url = new URL("https://api.keepa.com/graphimage");
+    url.searchParams.set("key",       env.KEEPA_API_KEY);
+    url.searchParams.set("domain",    String(domain));
+    url.searchParams.set("asin",      asin);
+    url.searchParams.set("amazon",    "1");  // Amazon price line
+    url.searchParams.set("new",       "1");  // New (3rd-party) price
+    url.searchParams.set("bb",        "1");  // Buy Box price
+    url.searchParams.set("salesrank", "1");  // BSR line
+    url.searchParams.set("range",     String(range)); // days of history
+    url.searchParams.set("width",     "1000");
+    url.searchParams.set("height",    "400");
+    url.searchParams.set("title",     "1");
+
+    const resp = await fetch(url.toString());
+    const contentType = resp.headers.get("content-type") || "";
+    // Keepa answers with a PNG on success, or JSON/text on error (bad ASIN,
+    // no tokens, invalid key). Anything that is not an image is a failure.
+    if (!resp.ok || !contentType.includes("image")) {
+      throw new AppError("Keepa chart is not available for this product", 502);
+    }
+    return Buffer.from(await resp.arrayBuffer());
+  },
 };
