@@ -334,6 +334,8 @@ export const keepaService = {
       },
       series: {
         price:      downsample(buyboxSeries.length ? buyboxSeries : newSeries),
+        amazon:     downsample(amazonSeries),
+        newPrice:   downsample(newSeries),
         rank:       downsample(rankSeries),
         reviews:    downsample(reviewSeries),
         offerCount: downsample(offerSeries),
