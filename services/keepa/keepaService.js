@@ -333,13 +333,18 @@ export const keepaService = {
         note: cogs > 0 ? "Calculated with your COGS" : "Enter COGS for accurate profit",
       },
       series: {
-        price:      downsample(buyboxSeries.length ? buyboxSeries : newSeries),
-        amazon:     downsample(amazonSeries),
-        newPrice:   downsample(newSeries),
-        rank:       downsample(rankSeries),
-        reviews:    downsample(reviewSeries),
-        offerCount: downsample(offerSeries),
-        fbaCount:   downsample(fbaCtSeries),
+        // Keepa's CSV only records a point when a value CHANGES, so these parsed
+        // series are already the change-points Keepa plots. Keep (almost) all of
+        // them — capping at 90 was what made the chart look coarse and misplaced
+        // values. Prices change rarely, so they go through essentially raw;
+        // rank/reviews are denser, so they get a higher cap rather than 90.
+        price:      downsample(buyboxSeries.length ? buyboxSeries : newSeries, 1000),
+        amazon:     downsample(amazonSeries, 1000),
+        newPrice:   downsample(newSeries, 1000),
+        rank:       downsample(rankSeries, 600),
+        reviews:    downsample(reviewSeries, 400),
+        offerCount: downsample(offerSeries, 300),
+        fbaCount:   downsample(fbaCtSeries, 300),
       },
       tokensLeft,
     };
