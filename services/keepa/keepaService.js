@@ -104,9 +104,12 @@ export const keepaService = {
     const listSeries   = parsePriceSeries(csv[CSV.LIST_PRICE],    cutoff90d);
     const rankSeries     = parseCsvSeries(csv[CSV.SALES_RANK], cutoff90d);
     const rankSeriesFull = parseCsvSeries(csv[CSV.SALES_RANK]);   // no time cutoff — for currentRank fallback
-    // Full-history price series (no 90-day cutoff) for all-time min/max price.
+    // Full-history series (no 90-day cutoff) for the all-time min/max and for
+    // the main chart, which shows the complete history like Keepa.
     const buyboxSeriesFull = parsePriceSeries(csv[CSV.BUYBOX]);
     const newSeriesFull    = parsePriceSeries(csv[CSV.NEW]);
+    const amazonSeriesFull = parsePriceSeries(csv[CSV.AMAZON]);
+    const reviewSeriesFull = parseCsvSeries(csv[CSV.REVIEW_COUNT]);
     const priceSeriesFull  = buyboxSeriesFull.length ? buyboxSeriesFull : newSeriesFull;
     const reviewSeries = parseCsvSeries(csv[CSV.REVIEW_COUNT],    cutoff90d);
     const offerSeries  = parseCsvSeries(csv[CSV.OFFER_COUNT_NEW], cutoff90d);
@@ -345,6 +348,11 @@ export const keepaService = {
         reviews:    downsample(reviewSeries, 400),
         offerCount: downsample(offerSeries, 300),
         fbaCount:   downsample(fbaCtSeries, 300),
+        // Complete history (all-time) for the main chart, Keepa-style.
+        priceFull:   downsample(priceSeriesFull, 1200),
+        amazonFull:  downsample(amazonSeriesFull, 1200),
+        rankFull:    downsample(rankSeriesFull, 800),
+        reviewsFull: downsample(reviewSeriesFull, 500),
       },
       tokensLeft,
     };
