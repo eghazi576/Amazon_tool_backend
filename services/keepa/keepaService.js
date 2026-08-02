@@ -13,6 +13,7 @@ import {
   medianOf,
   downsample,
   detectRankSpike,
+  buyBoxShare,
   bsrToSales,
   detectTrueCategory,
   calcProfit,
@@ -329,6 +330,12 @@ export const keepaService = {
         monthlySalesEstimate, monthlyRevenue,
         salesRankDrops30: drops30, salesRankDrops90: drops90,
         rankSpike: detectRankSpike(rankSeries), bsrTrend90,
+        // Buy Box share: Amazon vs third-party sellers (whole %), for brand vetting.
+        ...(() => {
+          const bb = buyBoxShare(stats, product);
+          debug("[Keepa] buyBoxShare:", bb, "| buyBoxStats:", stats?.buyBoxStats ? Object.keys(stats.buyBoxStats).length : "none");
+          return { amazonBuyBoxSharePct: bb.amazon, otherBuyBoxSharePct: bb.other };
+        })(),
       },
       profitAnalysis: {
         priceUsed: sellingPrice || 0,

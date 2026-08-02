@@ -57,6 +57,62 @@ export const downsample = (series, max = 90) => {
   return out;
 };
 
+// Amazon's Seller ID across Keepa marketplaces. When Amazon holds the Buy Box
+// it appears under one of these tokens (or the "-2" sentinel); everything else
+// is a third-party seller.
+const AMAZON_SELLER_IDS = new Set([
+  "ATVPDKIKX0DER", "A3P5ROKL5A1OLE", "A3JWKAKR8XB7XF", "A1PA6795UKMFR9",
+  "A13V1IB3VYE23U", "A1VC38T7YXB528", "AN1VRQENFRJN5", "A1AT7YVPFBWXBL",
+  "A1RKKUPIHCS9HS", "A21TJRUUN4KGV", "A1F83G8C2ARO7P", "A1IM4EOPHS76S7",
+  "AN7V1F1VY261K", "A19VAU5U5O7RUS", "A2Q3Y263D00KWC",
+]);
+
+/**
+ * Buy Box share split between Amazon and third-party sellers, as whole percents.
+ * Prefers Keepa's buyBoxStats (the "Buy Box Statistics" table: percentageWon per
+ * seller); falls back to a time-weighted count of the 90-day buy-box seller
+ * history. Returns { amazon, other } or nulls when Keepa carries no buy-box data.
+ */
+export function buyBoxShare(stats, product) {
+  const isAmz = (id, s) => (s && s.isAmazon === true) || AMAZON_SELLER_IDS.has(String(id));
+
+  const bb = stats && stats.buyBoxStats;
+  if (bb && typeof bb === "object" && Object.keys(bb).length) {
+    let amz = 0, oth = 0;
+    for (const [id, s] of Object.entries(bb)) {
+      const pct = Number(s && s.percentageWon);
+      if (!Number.isFinite(pct) || pct <= 0) continue;
+      if (isAmz(id, s)) amz += pct; else oth += pct;
+    }
+    const tot = amz + oth;
+    if (tot > 0) {
+      const scale = tot > 100 ? tot / 100 : 1; // normalise if values are basis points
+      return { amazon: Math.round(amz / scale), other: Math.round(oth / scale) };
+    }
+  }
+
+  const hist = product && product.buyBoxSellerIdHistory;
+  if (Array.isArray(hist) && hist.length >= 2) {
+    const nowMs = Date.now();
+    const cutoff = nowMs - 90 * 86400000;
+    let amzMs = 0, othMs = 0;
+    for (let i = 0; i < hist.length; i += 2) {
+      const seller = String(hist[i + 1]);
+      const t     = keepaMinutesToMs(hist[i]);
+      const tNext = i + 2 < hist.length ? keepaMinutesToMs(hist[i + 2]) : nowMs;
+      const segStart = Math.max(t, cutoff);
+      if (tNext <= segStart) continue;
+      if (seller === "-1" || seller === "") continue; // no buy box
+      const dur = tNext - segStart;
+      if (seller === "-2" || AMAZON_SELLER_IDS.has(seller)) amzMs += dur; else othMs += dur;
+    }
+    const tot = amzMs + othMs;
+    if (tot > 0) return { amazon: Math.round((amzMs / tot) * 100), other: Math.round((othMs / tot) * 100) };
+  }
+
+  return { amazon: null, other: null };
+}
+
 export const detectRankSpike = (rankSeries) => {
   if (!rankSeries || rankSeries.length < 5) return false;
   const vals = rankSeries.map((p) => p.v).filter((v) => v > 0);
