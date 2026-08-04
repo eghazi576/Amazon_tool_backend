@@ -97,6 +97,22 @@ export const adminModel = {
     return { totalUsers, totalSearches, recentSearches };
   },
 
+  // ── User management (admin-provisioned accounts) ──────────────────────────
+  listUsers: () =>
+    prisma.user.findMany({
+      orderBy: { createdAt: "desc" },
+      select: { id: true, email: true, createdAt: true },
+    }),
+
+  findUserByEmail: (email) =>
+    prisma.user.findUnique({ where: { email }, select: { id: true } }),
+
+  createUser: (data) =>
+    prisma.user.create({ data, select: { id: true, email: true, createdAt: true } }),
+
+  deleteUser: (id) =>
+    prisma.user.delete({ where: { id }, select: { id: true } }),
+
   getScoringConfig: async () => {
     const row = await prisma.appConfig.findUnique({ where: { key: SCORING_KEY } });
     return row ? row.value : DEFAULT_CONFIG;

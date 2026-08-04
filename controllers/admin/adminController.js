@@ -30,11 +30,39 @@ const searchesQuerySchema = z.object({
   dateTo:   z.string().optional(),
 });
 
+const createUserSchema = z.object({
+  email:    z.string().trim().toLowerCase().email("Invalid email address").max(255),
+  password: z.string().min(8, "Password must be at least 8 characters").max(100),
+});
+
 export const adminController = {
   async getStats(req, res, next) {
     try {
       const stats = await adminService.getStats();
       return sendSuccess(res, stats);
+    } catch (err) { next(err); }
+  },
+
+  // ── User management ─────────────────────────────────────────────────────
+  async getUsers(req, res, next) {
+    try {
+      const users = await adminService.listUsers();
+      return sendSuccess(res, users);
+    } catch (err) { next(err); }
+  },
+
+  async createUser(req, res, next) {
+    try {
+      const dto  = createUserSchema.parse(req.body);
+      const user = await adminService.createUser(dto);
+      return sendSuccess(res, user, "User created");
+    } catch (err) { next(err); }
+  },
+
+  async deleteUser(req, res, next) {
+    try {
+      await adminService.deleteUser(req.params.id);
+      return sendSuccess(res, { id: req.params.id }, "User removed");
     } catch (err) { next(err); }
   },
 
