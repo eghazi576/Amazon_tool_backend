@@ -8,7 +8,7 @@ export const authModel = {
   findByEmail: (email) =>
     prisma.user.findUnique({
       where:  { email },
-      select: { id: true, email: true, password: true, createdAt: true },
+      select: { id: true, email: true, password: true, status: true, createdAt: true },
     }),
 
   /**
@@ -17,7 +17,7 @@ export const authModel = {
   findById: (id) =>
     prisma.user.findUnique({
       where:  { id },
-      select: { id: true, email: true, createdAt: true },
+      select: { id: true, email: true, status: true, createdAt: true },
     }),
 
   /**
@@ -50,7 +50,7 @@ export const authModel = {
   create: (data) =>
     prisma.user.create({
       data,
-      select: { id: true, email: true, createdAt: true },
+      select: { id: true, email: true, status: true, createdAt: true },
     }),
 
   /**

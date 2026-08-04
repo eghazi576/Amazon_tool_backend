@@ -4,10 +4,9 @@ import { requireAuth } from "../../middlewares/requireAuth.js";
 
 const router = Router();
 
-// Public sign-up is disabled: accounts are provisioned by an admin from the
-// dashboard (POST /api/admin/users). Login only for everyone else.
-router.post("/register", (_req, res) =>
-  res.status(403).json({ error: "Public sign-up is disabled. Ask an administrator for an account." }));
+// Public sign-up is open, but new accounts start PENDING and cannot use the tool
+// until an admin approves them (see requireApproved + admin users endpoints).
+router.post("/register",        authController.register);
 router.post("/login",           authController.login);
 router.post("/refresh",         authController.refresh);
 router.post("/forgot-password", authController.forgotPassword);

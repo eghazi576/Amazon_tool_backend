@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { brandSearchController } from "../../controllers/brandSearch/brandSearchController.js";
 import { requireAuth } from "../../middlewares/requireAuth.js";
+import { requireApproved } from "../../middlewares/requireApproved.js";
 
 const router = Router();
 
-router.use(requireAuth);
+router.use(requireAuth, requireApproved);
 
 router.post(  "/",         brandSearchController.save);
 router.get(   "/",         brandSearchController.getHistory);

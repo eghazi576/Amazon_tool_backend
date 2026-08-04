@@ -13,6 +13,8 @@ export const adminService = {
     return adminModel.createUser({ email, password: hashed });
   },
 
+  setUserStatus: (id, status) => adminModel.setUserStatus(id, status),
+
   deleteUser: (id) => adminModel.deleteUser(id),
 
   getAllSearches: ({ limit, offset, search, decision, dateFrom, dateTo }) =>

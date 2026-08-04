@@ -97,18 +97,21 @@ export const adminModel = {
     return { totalUsers, totalSearches, recentSearches };
   },
 
-  // ── User management (admin-provisioned accounts) ──────────────────────────
+  // ── User management ───────────────────────────────────────────────────────
   listUsers: () =>
     prisma.user.findMany({
-      orderBy: { createdAt: "desc" },
-      select: { id: true, email: true, createdAt: true },
+      orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+      select: { id: true, email: true, status: true, createdAt: true },
     }),
 
   findUserByEmail: (email) =>
     prisma.user.findUnique({ where: { email }, select: { id: true } }),
 
   createUser: (data) =>
-    prisma.user.create({ data, select: { id: true, email: true, createdAt: true } }),
+    prisma.user.create({ data, select: { id: true, email: true, status: true, createdAt: true } }),
+
+  setUserStatus: (id, status) =>
+    prisma.user.update({ where: { id }, data: { status }, select: { id: true, email: true, status: true } }),
 
   deleteUser: (id) =>
     prisma.user.delete({ where: { id }, select: { id: true } }),

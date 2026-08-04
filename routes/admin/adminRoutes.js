@@ -10,6 +10,8 @@ router.use(requireAuth, requireAdmin);
 router.get("/stats",                      adminController.getStats);
 router.get("/users",                      adminController.getUsers);
 router.post("/users",                     adminController.createUser);
+router.put("/users/:id/approve",          adminController.approveUser);
+router.put("/users/:id/reject",           adminController.rejectUser);
 router.delete("/users/:id",               adminController.deleteUser);
 router.get("/searches",                   adminController.getAllSearches);
 router.get("/scoring-config",             adminController.getScoringConfig);

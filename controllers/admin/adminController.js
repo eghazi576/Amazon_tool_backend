@@ -59,6 +59,20 @@ export const adminController = {
     } catch (err) { next(err); }
   },
 
+  async approveUser(req, res, next) {
+    try {
+      const user = await adminService.setUserStatus(req.params.id, "APPROVED");
+      return sendSuccess(res, user, "User approved");
+    } catch (err) { next(err); }
+  },
+
+  async rejectUser(req, res, next) {
+    try {
+      const user = await adminService.setUserStatus(req.params.id, "REJECTED");
+      return sendSuccess(res, user, "User rejected");
+    } catch (err) { next(err); }
+  },
+
   async deleteUser(req, res, next) {
     try {
       await adminService.deleteUser(req.params.id);
