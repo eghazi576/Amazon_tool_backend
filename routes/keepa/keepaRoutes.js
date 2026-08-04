@@ -8,6 +8,7 @@ const router = Router();
 router.use(requireAuth, requireApproved);
 
 router.post("/product", keepaController.fetchProduct);
+router.get("/usage",    keepaController.usage);
 router.get("/graph",    keepaController.graph);
 
 export default router;
