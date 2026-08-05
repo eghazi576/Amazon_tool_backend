@@ -39,6 +39,30 @@ const KEEPA_ERROR_MESSAGES = {
   5: "Endpoint not available for your plan",
 };
 
+/**
+ * Look up Keepa seller names for a set of seller IDs (Seller API, one paid call
+ * for up to 100 ids). Returns a { sellerId: name } map; failures resolve to {}.
+ */
+async function fetchSellerNames(sellerIds, domain = 1) {
+  const ids = [...new Set(sellerIds)].filter(Boolean).slice(0, 100);
+  if (!ids.length) return {};
+  const url = new URL("https://api.keepa.com/seller");
+  url.searchParams.set("key",    env.KEEPA_API_KEY);
+  url.searchParams.set("domain", String(domain));
+  url.searchParams.set("seller", ids.join(","));
+  const resp = await fetch(url.toString());
+  if (!resp.ok) return {};
+  const data = await resp.json();
+  const out = {};
+  const sellers = data && data.sellers;
+  if (sellers && typeof sellers === "object") {
+    for (const [id, s] of Object.entries(sellers)) {
+      if (s && s.sellerName) out[id] = s.sellerName;
+    }
+  }
+  return out;
+}
+
 export const keepaService = {
   /**
    * Fetch product data from Keepa and compute profit analysis.
@@ -269,6 +293,18 @@ export const keepaService = {
     const monthlyRevenue = monthlySalesEstimate && sellingPrice
       ? parseFloat((monthlySalesEstimate * sellingPrice).toFixed(2)) : null;
 
+    // ── Buy Box sellers, enriched with real seller names (Seller API) ─────────
+    let buyBoxSellers = buyBoxBreakdown(stats, product);
+    const bbIds = buyBoxSellers.map((s) => s.sellerId).filter(Boolean);
+    if (bbIds.length) {
+      try {
+        const names = await fetchSellerNames(bbIds, domain);
+        buyBoxSellers = buyBoxSellers.map((s) =>
+          s.sellerId && names[s.sellerId] ? { ...s, seller: names[s.sellerId] } : s,
+        );
+      } catch (e) { debug("[Keepa] seller-name lookup failed:", e?.message); }
+    }
+
     // ── Build response ────────────────────────────────────────────────────────
     return {
       asin: cleanAsin,
@@ -337,8 +373,8 @@ export const keepaService = {
           debug("[Keepa] buyBoxShare:", bb, "| buyBoxStats:", stats?.buyBoxStats ? Object.keys(stats.buyBoxStats).length : "none");
           return { amazonBuyBoxSharePct: bb.amazon, otherBuyBoxSharePct: bb.other };
         })(),
-        // Per-seller Buy Box breakdown for the Buy Box Statistics table.
-        buyBoxSellers: buyBoxBreakdown(stats, product),
+        // Per-seller Buy Box breakdown (with real seller names) for the table.
+        buyBoxSellers,
       },
       profitAnalysis: {
         priceUsed: sellingPrice || 0,

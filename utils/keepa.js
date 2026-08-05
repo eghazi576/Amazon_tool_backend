@@ -134,7 +134,8 @@ export function buyBoxBreakdown(stats, product) {
       const amazon = isAmz(id, s);
       total += pct;
       raw.push({
-        seller:  label(id, amazon),
+        seller:   label(id, amazon),
+        sellerId: amazon ? null : String(id),
         pct,
         isAmazon: amazon,
         isFBA:   s && s.isFBA === true ? true : (s && s.isFBA === false ? false : null),
@@ -166,7 +167,7 @@ export function buyBoxBreakdown(stats, product) {
       if (total > 0) {
         for (const [key, dur] of Object.entries(ms)) {
           const amazon = key === "__amazon__";
-          sellers.push({ seller: label(key, amazon), sharePct: Math.round((dur / total) * 100), isAmazon: amazon, isFBA: null, avgPrice: null });
+          sellers.push({ seller: label(key, amazon), sellerId: amazon ? null : key, sharePct: Math.round((dur / total) * 100), isAmazon: amazon, isFBA: null, avgPrice: null });
         }
       }
     }
