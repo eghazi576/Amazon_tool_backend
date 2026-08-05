@@ -173,7 +173,8 @@ export function buyBoxBreakdown(stats, product) {
     }
   }
 
-  return sellers.filter((s) => s.sharePct > 0).sort((a, b) => b.sharePct - a.sharePct);
+  // Keep every seller that ever held the Buy Box in the window (even a rounded 0%).
+  return sellers.sort((a, b) => b.sharePct - a.sharePct);
 }
 
 export const detectRankSpike = (rankSeries) => {
