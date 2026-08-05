@@ -14,6 +14,7 @@ import {
   downsample,
   detectRankSpike,
   buyBoxShare,
+  buyBoxBreakdown,
   bsrToSales,
   detectTrueCategory,
   calcProfit,
@@ -336,6 +337,8 @@ export const keepaService = {
           debug("[Keepa] buyBoxShare:", bb, "| buyBoxStats:", stats?.buyBoxStats ? Object.keys(stats.buyBoxStats).length : "none");
           return { amazonBuyBoxSharePct: bb.amazon, otherBuyBoxSharePct: bb.other };
         })(),
+        // Per-seller Buy Box breakdown for the Buy Box Statistics table.
+        buyBoxSellers: buyBoxBreakdown(stats, product),
       },
       profitAnalysis: {
         priceUsed: sellingPrice || 0,

@@ -113,6 +113,68 @@ export function buyBoxShare(stats, product) {
   return { amazon: null, other: null };
 }
 
+/**
+ * Per-seller Buy Box breakdown (90-day) for the "Buy Box Statistics" table.
+ * From Keepa's buyBoxStats when present (share %, avg price, FBA flag), else a
+ * time-weighted split from the buy-box seller-id history (shares only).
+ * Returns an array sorted by share, each: { seller, sharePct, isAmazon, isFBA, avgPrice }.
+ */
+export function buyBoxBreakdown(stats, product) {
+  const isAmz = (id, s) => (s && s.isAmazon === true) || AMAZON_SELLER_IDS.has(String(id));
+  const label = (id, amazon) => (amazon ? "Amazon" : `Seller ${String(id).slice(0, 8)}`);
+  const sellers = [];
+
+  const bb = stats && stats.buyBoxStats;
+  if (bb && typeof bb === "object" && Object.keys(bb).length) {
+    let total = 0;
+    const raw = [];
+    for (const [id, s] of Object.entries(bb)) {
+      const pct = Number(s && s.percentageWon);
+      if (!Number.isFinite(pct) || pct <= 0) continue;
+      const amazon = isAmz(id, s);
+      total += pct;
+      raw.push({
+        seller:  label(id, amazon),
+        pct,
+        isAmazon: amazon,
+        isFBA:   s && s.isFBA === true ? true : (s && s.isFBA === false ? false : null),
+        avgPrice: s && s.avgPrice > 0 ? parseFloat((s.avgPrice / 100).toFixed(2)) : null,
+      });
+    }
+    const scale = total > 100 ? total / 100 : 1; // normalise basis points if needed
+    for (const r of raw) sellers.push({ ...r, sharePct: Math.round(r.pct / scale) });
+  }
+
+  if (!sellers.length) {
+    const hist = product && product.buyBoxSellerIdHistory;
+    if (Array.isArray(hist) && hist.length >= 2) {
+      const nowMs = Date.now();
+      const cutoff = nowMs - 90 * 86400000;
+      const ms = {};
+      let total = 0;
+      for (let i = 0; i < hist.length; i += 2) {
+        const seller = String(hist[i + 1]);
+        const t      = keepaMinutesToMs(hist[i]);
+        const tNext  = i + 2 < hist.length ? keepaMinutesToMs(hist[i + 2]) : nowMs;
+        const segStart = Math.max(t, cutoff);
+        if (tNext <= segStart) continue;
+        if (seller === "-1" || seller === "") continue;
+        const key = seller === "-2" || AMAZON_SELLER_IDS.has(seller) ? "__amazon__" : seller;
+        ms[key] = (ms[key] || 0) + (tNext - segStart);
+        total  += tNext - segStart;
+      }
+      if (total > 0) {
+        for (const [key, dur] of Object.entries(ms)) {
+          const amazon = key === "__amazon__";
+          sellers.push({ seller: label(key, amazon), sharePct: Math.round((dur / total) * 100), isAmazon: amazon, isFBA: null, avgPrice: null });
+        }
+      }
+    }
+  }
+
+  return sellers.filter((s) => s.sharePct > 0).sort((a, b) => b.sharePct - a.sharePct);
+}
+
 export const detectRankSpike = (rankSeries) => {
   if (!rankSeries || rankSeries.length < 5) return false;
   const vals = rankSeries.map((p) => p.v).filter((v) => v > 0);
