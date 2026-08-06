@@ -12,7 +12,7 @@ const saveSchema = z.object({
   brandName:             z.string().min(1),
   brandWebsite:          z.string().optional(),
   category:              z.string().optional(),
-  decision:              z.enum(["APPROVED", "REJECTED"]),
+  decision:              z.enum(["VIABLE", "NOT VIABLE"]),
   score:                 z.number(),
   maxScore:              z.number(),
   scorePct:              z.number(),

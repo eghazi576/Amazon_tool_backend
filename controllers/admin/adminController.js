@@ -25,7 +25,7 @@ const searchesQuerySchema = z.object({
   limit:    z.coerce.number().int().min(1).max(200).default(50),
   offset:   z.coerce.number().int().min(0).default(0),
   search:   z.string().trim().optional(),
-  decision: z.enum(["EXCELLENT","GOOD","AVERAGE","BAD","REJECT"]).optional(),
+  decision: z.enum(["HIGHLY VIABLE","LIKELY VIABLE","SEEMS VIABLE","LOW VIABLE","NOT VIABLE"]).optional(),
   dateFrom: z.string().optional(),
   dateTo:   z.string().optional(),
 });

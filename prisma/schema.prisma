@@ -87,7 +87,7 @@ model AsinSearch {
   breakEvenPrice Float? @map("break_even_price")
 
   // Scoring
-  decision   String? // EXCELLENT | GOOD | AVERAGE | BAD | REJECT
+  decision   String? // HIGHLY VIABLE | LIKELY VIABLE | SEEMS VIABLE | LOW VIABLE | NOT VIABLE
   score      Int?
   maxScore   Int?    @map("max_score")
   scorePct   Float?  @map("score_pct")
@@ -127,7 +127,7 @@ model BrandSearch {
   category     String?
 
   // Scoring result
-  decision         String   // APPROVED | REJECTED
+  decision         String   // VIABLE | NOT VIABLE
   score            Int
   maxScore         Int     @map("max_score")
   scorePct         Float   @map("score_pct")

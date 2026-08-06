@@ -14,7 +14,7 @@ export const saveSearchSchema = z.object({
   profit:           z.number().optional().nullable(),
   roi:              z.number().optional().nullable(),
   margin:           z.number().optional().nullable(),
-  decision:         z.enum(["EXCELLENT", "GOOD", "AVERAGE", "BAD", "REJECT"]).optional().nullable(),
+  decision:         z.enum(["HIGHLY VIABLE", "LIKELY VIABLE", "SEEMS VIABLE", "LOW VIABLE", "NOT VIABLE"]).optional().nullable(),
   score:            z.number().int().optional().nullable(),
   maxScore:         z.number().int().optional().nullable(),
   pct:              z.number().optional().nullable(),
